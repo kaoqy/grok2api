@@ -1,0 +1,584 @@
+#!/usr/bin/env python3
+"""Headless registration runner used by the grok2api registration service.
+
+The runner receives a JSON payload through GROK_REGISTER_PAYLOAD and emits one
+JSON object per line on stdout. The Go service owns account import, web-to-
+build conversion, and final egress assignment.
+"""
+from __future__ import annotations
+
+import json
+import os
+import random
+import re
+import secrets
+import string
+import time
+from typing import Any
+from urllib.parse import unquote, urlsplit
+
+from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
+
+BUILD_CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828"
+BUILD_SCOPE = (
+    "openid profile email offline_access grok-cli:access api:access "
+    "conversations:read conversations:write"
+)
+DEVICE_CODE_URL = "https://auth.x.ai/oauth2/device/code"
+DEVICE_VERIFY_URL = "https://auth.x.ai/oauth2/device/verify"
+DEVICE_TOKEN_URL = "https://auth.x.ai/oauth2/token"
+
+
+def emit(event_type: str, message: str = "", **fields: Any) -> None:
+    payload = {"type": event_type, "message": message}
+    payload.update({key: value for key, value in fields.items() if value not in (None, "")})
+    print(json.dumps(payload, ensure_ascii=False), flush=True)
+
+
+def payload() -> dict[str, Any]:
+    raw = os.environ.get("GROK_REGISTER_PAYLOAD", "")
+    if not raw:
+        emit("error", "缺少 GROK_REGISTER_PAYLOAD")
+        raise SystemExit(2)
+    return json.loads(raw)
+
+
+def random_username(length: int = 10) -> str:
+    alphabet = string.ascii_lowercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def random_password() -> str:
+    return "N" + secrets.token_urlsafe(12) + "!a7#"
+
+
+def random_profile() -> dict[str, str]:
+    first = random.choice(["Alex", "Mason", "Louis", "Lucas", "Blake", "Oscar", "Leo", "Ethan"])
+    last = random.choice(["Xu", "Cao", "Fan", "Lin", "Zhao", "Chen", "Wang"])
+    return {"name": f"{first} {last}", "given": first, "family": last, "birthday": "1995-06-15"}
+
+
+def playwright_proxy(raw: str) -> dict[str, str] | None:
+    """Convert a proxy URI into Playwright's proxy descriptor.
+
+    Playwright expects the server URL without credentials and takes the
+    username/password as separate fields. SOCKS5 is supported directly;
+    "socks5h" is normalised to "socks5" because Playwright resolves DNS
+    remotely for SOCKS regardless of the h suffix.
+    """
+    value = str(raw or "").strip()
+    if not value:
+        return None
+    parsed = urlsplit(value)
+    if not parsed.scheme or not parsed.hostname:
+        raise ValueError(f"代理地址格式无效: {value}")
+    scheme = parsed.scheme.lower()
+    if scheme == "socks5h":
+        scheme = "socks5"
+    if scheme not in {"http", "https", "socks4", "socks5"}:
+        raise ValueError(f"Playwright 不支持该代理协议: {scheme}")
+    port = parsed.port
+    authority = parsed.hostname if port is None else f"{parsed.hostname}:{port}"
+    descriptor: dict[str, str] = {"server": f"{scheme}://{authority}"}
+    if parsed.username:
+        descriptor["username"] = unquote(parsed.username)
+    if parsed.password:
+        descriptor["password"] = unquote(parsed.password)
+    return descriptor
+
+
+def create_mailbox(context: BrowserContext, api_base: str, api_key: str, path: str, domains: str) -> tuple[str, str]:
+    address_prefix = random_username()
+    domain = (domains or "").split(",")[0].strip()
+    request = context.request
+    response = request.post(
+        api_base.rstrip("/") + path,
+        headers={"x-admin-auth": api_key, "Content-Type": "application/json"},
+        data={"name": address_prefix, "enablePrefix": True, **({"domain": domain} if domain else {})},
+    )
+    if response.status >= 400:
+        body = ""
+        try:
+            body = response.text()[:200]
+        except Exception:
+            pass
+        raise RuntimeError(f"创建临时邮箱失败: HTTP {response.status} {body}".strip())
+    data = response.json()
+    address = str(data.get("address") or "")
+    token = str(data.get("jwt") or "")
+    if not address or not token:
+        raise RuntimeError("创建临时邮箱响应缺少 address/jwt")
+    return address, token
+
+
+# xAI 的验证码可能是 123-456、123456、ABC-123 等形式，不能只认一种。
+CODE_PATTERNS = (
+    re.compile(r"\b([0-9]{3}-[0-9]{3})\b"),
+    re.compile(r"\b([A-Z0-9]{3}-[A-Z0-9]{3})\b"),
+    re.compile(r"(?<![0-9])([0-9]{6})(?![0-9])"),
+    re.compile(r"\b([A-Z]{2,4}-[0-9]{3,4})\b"),
+)
+
+
+def extract_code(text: str) -> str:
+    for pattern in CODE_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def fetch_code(context: BrowserContext, api_base: str, path: str, token: str, timeout: int = 180) -> str:
+    deadline = time.time() + timeout
+    last_status = None
+    last_rows = None
+    last_report = 0.0
+    while time.time() < deadline:
+        response = context.request.get(
+            api_base.rstrip("/") + path,
+            headers={"Authorization": "Bearer " + token},
+            params={"limit": 20, "offset": 0},
+        )
+        if response.status < 400:
+            try:
+                payload = response.json()
+            except Exception:
+                payload = {}
+            rows = payload.get("results") if isinstance(payload, dict) else None
+            rows = rows or []
+            last_status = response.status
+            last_rows = len(rows)
+            for row in rows or []:
+                raw = str(row.get("raw") or row.get("text") or row.get("content") or "")
+                code = extract_code(raw)
+                if code:
+                    emit("progress", f"已从邮件中提取验证码 {code}")
+                    return code
+            # 明确告知「邮箱是空的」，便于区分没发信和取信失败。
+            now = time.time()
+            if now - last_report >= 15:
+                last_report = now
+                emit("progress", f"等待验证码邮件，当前收件箱 {len(rows)} 封")
+        else:
+            # 取信接口出错要立刻暴露，而不是静默等到超时。
+            body = ""
+            try:
+                body = response.text()[:200]
+            except Exception:
+                pass
+            raise RuntimeError(f"读取临时邮箱失败: HTTP {response.status} {body}".strip())
+        time.sleep(3)
+    if last_rows == 0:
+        raise RuntimeError("等待验证码邮件超时：收件箱始终为空，说明注册页并没有真的发出验证码邮件")
+    raise RuntimeError(f"等待验证码邮件超时：收到 {last_rows} 封邮件但没有可识别的验证码")
+
+
+def click_email_signup(page: Page) -> None:
+    deadline = time.time() + 60
+    selectors = [
+        "text=使用邮箱注册",
+        "text=Sign up with email",
+        "button:has-text('邮箱')",
+        "button:has-text('email')",
+    ]
+    while time.time() < deadline:
+        for selector in selectors:
+            locator = page.locator(selector).first
+            if locator.count() and locator.is_visible():
+                locator.click()
+                return
+        page.wait_for_timeout(500)
+    raise RuntimeError("未找到邮箱注册按钮")
+
+
+def fill_email(page: Page, address: str) -> None:
+    locator = page.locator("input[type=email], input[name=email], input[autocomplete=email]").first
+    locator.wait_for(state="visible", timeout=60000)
+    locator.fill(address)
+    # 邮箱输入框可能由 React 受控，补一次 input 事件确保状态同步。
+    locator.dispatch_event("input")
+    locator.dispatch_event("change")
+    # 部分版本在同一页同时要求设置密码，先填上，避免提交被表单校验拦下。
+    password = page.locator("input[type=password]").first
+    if password.count() and password.is_visible():
+        password.fill(random_password())
+        password.dispatch_event("input")
+        password.dispatch_event("change")
+    # 提交按钮在人机验证通过前通常是禁用的，先给它一点时间。
+    try:
+        wait_for_turnstile(page, timeout=45)
+    except RuntimeError:
+        pass
+    for selector in [
+        "button[type=submit]",
+        "button:has-text('Continue')",
+        "button:has-text('继续')",
+        "button:has-text('注册')",
+        "button:has-text('Sign up')",
+    ]:
+        button = page.locator(selector).first
+        if button.count() and button.is_visible() and button.is_enabled():
+            button.click()
+            break
+    else:
+        page.keyboard.press("Enter")
+        locator.press("Enter")
+
+
+CODE_STEP_SELECTORS = (
+    "input[maxlength='1']",
+    "input[inputmode='numeric']",
+    "input[autocomplete='one-time-code']",
+    "input[name='code']",
+)
+
+# xAI 会在部分出口直接关闭邮箱注册，页面会明确写出这句话。
+EMAIL_SIGNUP_UNAVAILABLE_MARKERS = (
+    "email sign-up isn’t available",
+    "email sign-up isn't available",
+    "email signup isn't available",
+    "sign up another way",
+)
+
+
+def email_signup_unavailable(page: Page) -> bool:
+    try:
+        text = (page.inner_text("body") or "").lower()
+    except Exception:
+        return False
+    return any(marker in text for marker in EMAIL_SIGNUP_UNAVAILABLE_MARKERS)
+
+
+def wait_for_code_step(page: Page, timeout: int = 45) -> None:
+    """确认邮箱提交后真的进入了验证码步骤。
+
+    没发信通常就发生在这里：提交按钮没点到、表单校验没过、或者上游直接
+    报错。先把原因说清楚，再去轮询邮箱，避免白等三分钟。
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if email_signup_unavailable(page):
+            raise RuntimeError(
+                "xAI 当前关闭了邮箱注册（页面提示 Email sign-up isn't available right now），"
+                "这不是本地配置问题，请更换代理出口或等待上游重新开放。"
+            )
+        for selector in CODE_STEP_SELECTORS:
+            locator = page.locator(selector).first
+            if locator.count() and locator.is_visible():
+                return
+        error_text = page.evaluate(
+            """() => {
+                const el = document.querySelector(
+                    '[role=alert], [data-testid*=error], .error, .text-red-500, [class*=error]'
+                );
+                return el ? (el.innerText || '').trim().slice(0, 200) : '';
+            }"""
+        )
+        if error_text:
+            raise RuntimeError(f"提交邮箱后上游报错: {error_text}")
+        page.wait_for_timeout(1000)
+
+    # 收集现场证据，区分「人机验证没过」「上游报错」「域名被拒」三种情况。
+    state = page.evaluate(
+        """() => {
+            const turnstile = document.querySelector('input[name="cf-turnstile-response"]');
+            const body = (document.body.innerText || '').replace(/\\s+/g, ' ').trim();
+            return {
+                hasTurnstile: Boolean(turnstile),
+                turnstileSolved: Boolean(turnstile && turnstile.value),
+                text: body.slice(0, 300)
+            };
+        }"""
+    ) or {}
+    if state.get("hasTurnstile") and not state.get("turnstileSolved"):
+        raise RuntimeError(
+            "提交邮箱后未进入验证码页面：人机验证（Turnstile）没有通过。"
+            "这通常是出口 IP 被判定为风险，请更换更干净的代理后重试。"
+        )
+    visible = str(state.get("text") or "").strip()
+    raise RuntimeError(
+        f"提交邮箱后未进入验证码页面（当前 URL={page.url}）。"
+        f"页面可见内容: {visible or '（空）'}"
+    )
+
+
+def fill_code(page: Page, code: str) -> None:
+    digits = code.replace("-", "")
+    boxes = []
+    candidates = page.locator("input[maxlength='1'], input[inputmode='numeric'], input[autocomplete='one-time-code']")
+    for index in range(candidates.count()):
+        element = candidates.nth(index)
+        if element.is_visible():
+            boxes.append(element)
+    if len(boxes) >= len(digits):
+        for box, digit in zip(boxes, digits):
+            box.fill(digit)
+        return
+    locator = page.locator("input[inputmode=numeric], input[name=code], input[autocomplete=one-time-code]").first
+    locator.fill(digits)
+    page.keyboard.press("Enter")
+
+
+def fill_profile(page: Page, profile: dict[str, str]) -> None:
+    given = page.locator("input[name=givenName], input[autocomplete=given-name]").first
+    given.wait_for(state="visible", timeout=60000)
+    given.fill(profile["given"])
+    family = page.locator("input[name=familyName], input[autocomplete=family-name]").first
+    if family.count():
+        family.fill(profile["family"])
+    password = page.locator("input[name=password], input[type=password]").first
+    if password.count():
+        password.fill(random_password())
+    for selector in [
+        "button[type=submit]",
+        "button:has-text('完成注册')",
+        "button:has-text('Create account')",
+        "button:has-text('Continue')",
+        "button:has-text('继续')",
+    ]:
+        button = page.locator(selector).first
+        if button.count() and button.is_visible():
+            button.click()
+            return
+    raise RuntimeError("未找到资料提交按钮")
+
+
+def wait_for_profile_page(page: Page, timeout: int = 90) -> None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for selector in ["input[name=givenName]", "input[autocomplete=given-name]", "input[name=password]", "input[type=password]"]:
+            locator = page.locator(selector).first
+            if locator.count() and locator.is_visible():
+                return
+        page.wait_for_timeout(1000)
+    raise RuntimeError("资料页未出现")
+
+
+def wait_for_turnstile(page: Page, timeout: int = 150) -> None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        token = page.evaluate(
+            """() => {
+                const input = document.querySelector('input[name="cf-turnstile-response"]');
+                if (input && input.value) return input.value;
+                if (window.turnstile && typeof window.turnstile.getResponse === 'function') {
+                    try { return window.turnstile.getResponse() || ''; } catch (e) { return ''; }
+                }
+                return '';
+            }"""
+        )
+        if token:
+            emit("progress", f"人机验证通过 token长度={len(token)}")
+            return
+        page.wait_for_timeout(2000)
+    raise RuntimeError("Turnstile 验证超时")
+
+
+def read_sso(context: BrowserContext, page: Page, timeout: int = 180) -> str:
+    deadline = time.time() + timeout
+    emitted = False
+    while time.time() < deadline:
+        try:
+            cookies = {cookie["name"]: cookie["value"] for cookie in context.cookies()}
+        except Exception:
+            cookies = {}
+        sso = cookies.get("sso") or cookies.get("sso-rw")
+        if sso:
+            return sso
+        if not emitted:
+            try:
+                emit(
+                    "progress",
+                    "等待 SSO 中；当前 URL=%s cookies=%s"
+                    % (page.url, ",".join(sorted(cookies))[:200]),
+                )
+            except Exception:
+                pass
+            emitted = True
+        page.wait_for_timeout(2000)
+    raise RuntimeError("等待 SSO cookie 超时")
+
+
+def convert_to_build(context: BrowserContext, page: Page, timeout: int = 180) -> dict[str, Any]:
+    """Run the xAI Device Flow through real page interaction.
+
+    The approve endpoint rejects plain HTTP clients because the consent page JS
+    generates request-integrity fields. Clicking the real button does pass, so
+    the whole flow is driven in-page.
+    """
+    device = context.request.post(
+        DEVICE_CODE_URL,
+        form={"client_id": BUILD_CLIENT_ID, "scope": BUILD_SCOPE},
+    ).json()
+    device_code = str(device.get("device_code") or "")
+    user_code = str(device.get("user_code") or "")
+    if not device_code or not user_code:
+        raise RuntimeError("Device Flow 启动失败")
+
+    verify = context.request.post(
+        DEVICE_VERIFY_URL,
+        form={"user_code": user_code},
+        max_redirects=0,
+    )
+    consent_url = verify.headers.get("location")
+    if not consent_url:
+        raise RuntimeError("Device Flow 未返回 consent 地址")
+
+    page.goto(consent_url, wait_until="domcontentloaded", timeout=90000)
+    allow = page.locator("button[value=allow]").first
+    if not allow.count():
+        allow = page.locator("button[type=submit]").last
+    allow.wait_for(state="visible", timeout=60000)
+    allow.click()
+    page.wait_for_timeout(4000)
+    if "/oauth2/device/done" not in page.url:
+        raise RuntimeError(f"Device Flow 授权未完成: {page.url}")
+
+    interval = int(device.get("interval") or 5)
+    expires_in = int(device.get("expires_in") or 600)
+    deadline = time.time() + min(expires_in, timeout)
+    while time.time() < deadline:
+        payload = context.request.post(
+            DEVICE_TOKEN_URL,
+            form={
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "client_id": BUILD_CLIENT_ID,
+                "device_code": device_code,
+            },
+        ).json()
+        access = str(payload.get("access_token") or "")
+        if access:
+            expires = int(payload.get("expires_in") or 3600)
+            return {
+                "access_token": access,
+                "refresh_token": str(payload.get("refresh_token") or ""),
+                "id_token": str(payload.get("id_token") or ""),
+                "expires_in": expires,
+                "expires_at": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + expires)
+                ),
+            }
+        error = str(payload.get("error") or "")
+        if error in ("authorization_pending", "slow_down"):
+            time.sleep(max(interval, 2))
+            continue
+        raise RuntimeError(f"Device Flow 换取 token 失败: {error or payload}")
+    raise RuntimeError("Device Flow 等待 token 超时")
+
+
+def run_one(payload: dict[str, Any], attempt: int = 1) -> dict[str, str]:
+    proxy = str(payload.get("proxy") or "")
+    headless = bool(payload.get("headless", True))
+    launch: dict[str, Any] = {
+        "headless": headless,
+        "args": ["--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"],
+    }
+    channel = str(payload.get("channel") or "").strip()
+    if channel:
+        launch["channel"] = channel
+    executable = str(payload.get("chromiumPath") or "").strip()
+    if executable:
+        launch["executable_path"] = executable
+    proxy_descriptor = playwright_proxy(proxy)
+    if proxy_descriptor:
+        launch["proxy"] = proxy_descriptor
+    with sync_playwright() as playwright:
+        browser: Browser = playwright.chromium.launch(**launch)
+        context = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 900},
+        )
+        page = context.new_page()
+        page.goto("https://accounts.x.ai/sign-up?redirect=grok-com", wait_until="domcontentloaded", timeout=90000)
+        click_email_signup(page)
+        emit("progress", "已进入注册页")
+        address, mailbox_token = create_mailbox(
+            context,
+            str(payload.get("apiBase") or ""),
+            str(payload.get("apiKey") or ""),
+            str(payload.get("pathAccounts") or "/admin/new_address"),
+            str(payload.get("defaultDomains") or ""),
+        )
+        emit("progress", f"已创建邮箱 {address}", email=address)
+        fill_email(page, address)
+        # 提交后必须先确认页面进入验证码步骤，否则说明邮件根本没发出。
+        wait_for_code_step(page)
+        emit("progress", "已提交邮箱，等待验证码邮件")
+        debug_dir = str(payload.get("debugDir") or "").strip()
+        if debug_dir:
+            try:
+                page.wait_for_timeout(3000)
+                os.makedirs(debug_dir, exist_ok=True)
+                page.screenshot(path=os.path.join(debug_dir, "after-email.png"), full_page=True)
+                with open(os.path.join(debug_dir, "after-email.html"), "w", encoding="utf-8") as handle:
+                    handle.write(page.content())
+                emit("progress", f"已保存诊断快照到 {debug_dir}")
+            except Exception as exc:  # noqa: BLE001
+                emit("progress", f"诊断快照失败: {exc}")
+        code = fetch_code(
+            context,
+            str(payload.get("apiBase") or ""),
+            str(payload.get("pathMessages") or "/api/mails"),
+            mailbox_token,
+        )
+        emit("progress", "已收到验证码", email=address)
+        fill_code(page, code)
+        page.wait_for_timeout(3000)
+        if debug_dir:
+            try:
+                page.screenshot(path=os.path.join(debug_dir, "after-code.png"), full_page=True)
+                with open(os.path.join(debug_dir, "after-code.html"), "w", encoding="utf-8") as handle:
+                    handle.write(page.content())
+            except Exception:
+                pass
+        wait_for_profile_page(page)
+        wait_for_turnstile(page)
+        profile = random_profile()
+        fill_profile(page, profile)
+        emit("progress", f"已提交资料 {profile['name']}", email=address)
+        sso = read_sso(context, page)
+        emit("account", "注册成功", email=address, sso=sso)
+        if bool(payload.get("convertToBuild", True)):
+            try:
+                build = convert_to_build(context, page)
+                emit(
+                    "build",
+                    "已转换为 Build 账号",
+                    email=address,
+                    access_token=build["access_token"],
+                    refresh_token=build["refresh_token"],
+                    id_token=build["id_token"],
+                    expires_at=build["expires_at"],
+                )
+            except Exception as exc:  # noqa: BLE001
+                emit("progress", f"转 Build 失败，保留 Web 账号: {exc}", email=address)
+        context.close()
+        browser.close()
+        return {"email": address, "sso": sso}
+
+
+def main() -> int:
+    config = payload()
+    count = int(config.get("count") or 1)
+    max_attempts = max(1, int(config.get("attempts") or 2))
+    for index in range(count):
+        emit("progress", f"开始第 {index + 1}/{count} 个账号")
+        last_error = ""
+        for attempt in range(1, max_attempts + 1):
+            try:
+                run_one(config, attempt)
+                last_error = ""
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                emit("progress", f"第 {attempt}/{max_attempts} 次尝试失败: {last_error}")
+        if last_error:
+            emit("error", last_error)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

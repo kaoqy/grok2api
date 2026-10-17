@@ -1,0 +1,222 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * ============================================================================
+ *  设计语言：暖色羊皮纸 + 陶土强调
+ * ============================================================================
+ *  取色与形状参考 workbuddy2api-hub 的用量看板：
+ *    - 画布是暖调米白（#f7f5ef），面板纯白，次级面更深一点的暖灰
+ *    - 强调色是陶土橙（#c96442），正向状态用苔绿（#5e8c4f）
+ *    - 圆角偏大：面板 12-14px，控件 8px，徽章药丸
+ *    - 阴影很轻，靠 1px 暖色描边区分层次
+ *    - 顶部导航半透明吸顶，标题用较紧的字距
+ */
+
+:root {
+  --radius: 0.625rem;
+
+  --background: #f7f5ef;
+  --foreground: #1f1e1b;
+
+  --card: #ffffff;
+  --card-foreground: #1f1e1b;
+  --popover: #ffffff;
+  --popover-foreground: #1f1e1b;
+
+  --primary: #c96442;
+  --primary-foreground: #fdf9f6;
+
+  --secondary: #f1efe7;
+  --secondary-foreground: #2c2a25;
+  --muted: #f1efe7;
+  --muted-foreground: #73716a;
+  --accent: #f4e5df;
+  --accent-foreground: #8f4327;
+
+  --destructive: #b5473b;
+  --border: #e6e3d8;
+  --input: #d9d5c7;
+  --ring: #c96442;
+
+  /* 侧栏与顶栏同为暖白，靠描边区分 */
+  --sidebar: #fcfaf5;
+  --sidebar-foreground: #45433c;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fdf9f6;
+  --sidebar-accent: #f1efe7;
+  --sidebar-accent-foreground: #1f1e1b;
+  --sidebar-border: #e6e3d8;
+
+  /* 语义色 */
+  --success: #5e8c4f;
+  --warn: #a0691c;
+  --think: #8a6a96;
+
+  --quota-product-0: #8a8781;
+  --quota-product-1: #5c7fa8;
+  --quota-product-2: #5e8c4f;
+  --quota-product-3: #b7791f;
+  --quota-product-4: #8a6a96;
+  --quota-product-5: #6a74a8;
+  --quota-product-6: #b5473b;
+}
+
+.dark {
+  --background: #1f1e1b;
+  --foreground: #edebe3;
+
+  --card: #292823;
+  --card-foreground: #edebe3;
+  --popover: #292823;
+  --popover-foreground: #edebe3;
+
+  --primary: #d97757;
+  --primary-foreground: #241a15;
+
+  --secondary: #33312b;
+  --secondary-foreground: #e6e3da;
+  --muted: #33312b;
+  --muted-foreground: #a5a29a;
+  --accent: #402f28;
+  --accent-foreground: #f0d3c6;
+
+  --destructive: #d97b72;
+  --border: #403e37;
+  --input: #4d4a41;
+  --ring: #d97757;
+
+  --sidebar: #24231f;
+  --sidebar-foreground: #c9c6bd;
+  --sidebar-primary: #d97757;
+  --sidebar-primary-foreground: #241a15;
+  --sidebar-accent: #33312b;
+  --sidebar-accent-foreground: #f0eee6;
+  --sidebar-border: #3a3831;
+
+  --success: #8fae78;
+  --warn: #d9b25f;
+  --think: #bfa3cc;
+
+  --quota-product-0: #a5a29a;
+  --quota-product-1: #86a8cd;
+  --quota-product-2: #8fae78;
+  --quota-product-3: #d9b25f;
+  --quota-product-4: #bfa3cc;
+  --quota-product-5: #97a2d1;
+  --quota-product-6: #d97b72;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-think: var(--think);
+  --color-quota-product-0: var(--quota-product-0);
+  --color-quota-product-1: var(--quota-product-1);
+  --color-quota-product-2: var(--quota-product-2);
+  --color-quota-product-3: var(--quota-product-3);
+  --color-quota-product-4: var(--quota-product-4);
+  --color-quota-product-5: var(--quota-product-5);
+  --color-quota-product-6: var(--quota-product-6);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+
+  --shadow-panel: 0 1px 2px 0 rgb(31 30 27 / 0.05), 0 4px 14px rgb(31 30 27 / 0.04);
+  --shadow-float: 0 2px 6px 0 rgb(31 30 27 / 0.06), 0 12px 32px rgb(31 30 27 / 0.09);
+}
+
+* {
+  border-color: var(--border);
+}
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--input) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background-clip: content-box;
+    background-color: var(--input);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+    background-clip: content-box;
+  }
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--primary) 22%, transparent);
+}
+
+:focus-visible {
+  outline-color: var(--ring);
+}
