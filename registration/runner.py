@@ -173,55 +173,164 @@ def fetch_code(context: BrowserContext, api_base: str, path: str, token: str, ti
     raise RuntimeError(f"等待验证码邮件超时：收到 {last_rows} 封邮件但没有可识别的验证码")
 
 
+CLICK_EMAIL_SIGNUP_JS = r"""
+() => {
+function isVisible(node) {
+    if (!node) return false;
+    const style = window.getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+    const rect = node.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+}
+function nodeText(node) {
+    return [node.innerText, node.textContent, node.getAttribute('aria-label'), node.getAttribute('title'), node.getAttribute('href')]
+        .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+function scoreEntry(node) {
+    const compact = nodeText(node).replace(/\s+/g, '');
+    const lower = compact.toLowerCase();
+    if (compact.includes('使用邮箱注册')) return 100;
+    if (lower.includes('signupwithemail')) return 95;
+    if (lower.includes('continuewithemail')) return 90;
+    if (lower.includes('email') && (lower.includes('sign') || lower.includes('continue') || lower.includes('use') || lower.includes('with'))) return 80;
+    if (lower === 'email' || lower.includes('邮箱')) return 70;
+    return 0;
+}
+const candidates = Array.from(document.querySelectorAll('button, a, [role="button"]'))
+    .filter((node) => isVisible(node) && !node.disabled && node.getAttribute('aria-disabled') !== 'true')
+    .map((node) => ({ node, score: scoreEntry(node), text: nodeText(node) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+if (!candidates.length) return '';
+candidates[0].node.click();
+return candidates[0].text || 'clicked';
+}
+"""
+
+
 def click_email_signup(page: Page) -> None:
+    """用页面内 JS 按文本打分点击邮箱注册入口。
+
+    直接按 selector 点容易误命中导航栏里的其它 email 元素。
+    """
     deadline = time.time() + 60
-    selectors = [
-        "text=使用邮箱注册",
-        "text=Sign up with email",
-        "button:has-text('邮箱')",
-        "button:has-text('email')",
-    ]
     while time.time() < deadline:
-        for selector in selectors:
-            locator = page.locator(selector).first
-            if locator.count() and locator.is_visible():
-                locator.click()
-                return
-        page.wait_for_timeout(500)
-    raise RuntimeError("未找到邮箱注册按钮")
+        clicked = page.evaluate(CLICK_EMAIL_SIGNUP_JS)
+        if clicked:
+            emit("progress", f"已点击邮箱注册入口（{clicked[:40]}）")
+            page.wait_for_timeout(1500)
+            return
+        page.wait_for_timeout(800)
+    raise RuntimeError("未找到「使用邮箱注册」按钮")
+
+
+# 参考 grok-register 的做法：用页面内 JS 直接定位并写入邮箱，
+# 再用文本打分点提交按钮。Playwright 的 locator 在 React 受控表单上不够稳。
+EMAIL_FILL_JS = r"""
+(email) => {
+function isVisible(node) {
+    if (!node) return false;
+    const style = window.getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+    const rect = node.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+}
+function textOf(node) {
+    return [
+        node.innerText, node.textContent, node.getAttribute('aria-label'), node.getAttribute('title'),
+        node.getAttribute('placeholder'), node.getAttribute('data-testid'), node.getAttribute('name'),
+        node.getAttribute('id'), node.getAttribute('autocomplete')
+    ].filter(Boolean).join(' ').replace(/\\s+/g, ' ').trim();
+}
+const direct = Array.from(document.querySelectorAll(
+    'input[data-testid="email"], input[name="email"], input[type="email"], input[autocomplete="email"], input[placeholder*="mail" i], input[aria-label*="mail" i]'
+));
+for (const node of Array.from(document.querySelectorAll('input, textarea'))) {
+    const type = (node.getAttribute('type') || '').toLowerCase();
+    if (['hidden', 'submit', 'button', 'checkbox', 'radio', 'file', 'search'].includes(type)) continue;
+    const meta = textOf(node).toLowerCase();
+    if (meta.includes('email') || meta.includes('e-mail') || meta.includes('mail') || meta.includes('邮箱') || meta.includes('电子邮件')) direct.push(node);
+}
+const input = Array.from(new Set(direct)).find((node) => isVisible(node) && !node.disabled && !node.readOnly) || null;
+if (!input) return JSON.stringify({ state: 'not-ready' });
+input.focus(); input.click();
+const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+const tracker = input._valueTracker;
+if (tracker) tracker.setValue('');
+if (setter) setter.call(input, email); else input.value = email;
+input.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, data: email, inputType: 'insertText' }));
+input.dispatchEvent(new InputEvent('input', { bubbles: true, data: email, inputType: 'insertText' }));
+input.dispatchEvent(new Event('change', { bubbles: true }));
+input.blur();
+return JSON.stringify({ state: 'filled', value: input.value || '' });
+}
+"""
+
+EMAIL_SUBMIT_JS = r"""
+() => {
+function isVisible(node) {
+    if (!node) return false;
+    const style = window.getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+    const rect = node.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+}
+function textOf(node) {
+    return [node.innerText, node.textContent, node.getAttribute('aria-label'), node.getAttribute('title')]
+        .filter(Boolean).join(' ').replace(/\\s+/g, ' ').trim();
+}
+const buttons = Array.from(document.querySelectorAll('button[type="submit"], button, [role="button"], input[type="submit"]'))
+    .filter((node) => isVisible(node) && !node.disabled && node.getAttribute('aria-disabled') !== 'true');
+const target = buttons.find((node) => {
+    const t = textOf(node).replace(/\\s+/g, '').toLowerCase();
+    return t === '注册' || t.includes('注册') || t.includes('继续') || t.includes('下一步') || t.includes('确认')
+        || t.includes('signup') || t.includes('sign up') || t.includes('continue') || t.includes('next')
+        || t.includes('createaccount') || t.includes('submit');
+});
+if (target) { target.click(); return textOf(target) || 'button'; }
+const input = Array.from(document.querySelectorAll('input')).find((n) => isVisible(n) && (n.getAttribute('type') || '').toLowerCase() === 'email');
+const form = input && input.closest('form');
+if (form) {
+    if (form.requestSubmit) form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    return 'form-submit';
+}
+if (input) {
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+    return 'enter';
+}
+return '';
+}
+"""
 
 
 def fill_email(page: Page, address: str) -> None:
-    locator = page.locator("input[type=email], input[name=email], input[autocomplete=email]").first
-    locator.wait_for(state="visible", timeout=60000)
-    locator.fill(address)
-    # 邮箱输入框可能由 React 受控，补一次 input 事件确保状态同步。
-    locator.dispatch_event("input")
-    locator.dispatch_event("change")
-    # 部分版本在同一页同时要求设置密码，先填上，避免提交被表单校验拦下。
-    password = page.locator("input[type=password]").first
-    if password.count() and password.is_visible():
-        password.fill(random_password())
-        password.dispatch_event("input")
-        password.dispatch_event("change")
-    # 提交按钮在人机验证通过前通常是禁用的。拿不到 token 时不能硬提交，
-    # 否则 xAI 会误报 "Email sign-up isn't available right now"。
-    if turnstile_present(page):
-        wait_for_turnstile(page, timeout=60)
-    for selector in [
-        "button[type=submit]",
-        "button:has-text('Continue')",
-        "button:has-text('继续')",
-        "button:has-text('注册')",
-        "button:has-text('Sign up')",
-    ]:
-        button = page.locator(selector).first
-        if button.count() and button.is_visible() and button.is_enabled():
-            button.click()
+    """填写邮箱并提交。
+
+    与 grok-register 保持一致：邮箱步骤本身不等待 Turnstile，
+    Turnstile 是后续资料步骤才需要处理的东西。
+    """
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        raw = page.evaluate(EMAIL_FILL_JS, address)
+        try:
+            state = json.loads(raw or "{}")
+        except Exception:
+            state = {}
+        if state.get("state") == "filled":
             break
+        page.wait_for_timeout(500)
     else:
-        page.keyboard.press("Enter")
-        locator.press("Enter")
+        raise RuntimeError("提交邮箱前未找到可用的邮箱输入框")
+
+    page.wait_for_timeout(600)
+    clicked = page.evaluate(EMAIL_SUBMIT_JS)
+    if not clicked:
+        raise RuntimeError("邮箱输入框已填写，但页面上没有可用的提交按钮")
+    emit("progress", f"已填写邮箱并提交（{clicked}）")
 
 
 CODE_STEP_SELECTORS = (
@@ -248,19 +357,15 @@ def email_signup_unavailable(page: Page) -> bool:
     return any(marker in text for marker in EMAIL_SIGNUP_UNAVAILABLE_MARKERS)
 
 
-def wait_for_code_step(page: Page, timeout: int = 45) -> None:
+def wait_for_code_step(page: Page, timeout: int = 90) -> None:
     """确认邮箱提交后真的进入了验证码步骤。
 
     没发信通常就发生在这里：提交按钮没点到、表单校验没过、或者上游直接
     报错。先把原因说清楚，再去轮询邮箱，避免白等三分钟。
     """
     deadline = time.time() + timeout
+    last_nudge = 0.0
     while time.time() < deadline:
-        if email_signup_unavailable(page):
-            raise RuntimeError(
-                "xAI 当前关闭了邮箱注册（页面提示 Email sign-up isn't available right now），"
-                "这不是本地配置问题，请更换代理出口或等待上游重新开放。"
-            )
         for selector in CODE_STEP_SELECTORS:
             locator = page.locator(selector).first
             if locator.count() and locator.is_visible():
@@ -275,6 +380,15 @@ def wait_for_code_step(page: Page, timeout: int = 45) -> None:
         )
         if error_text:
             raise RuntimeError(f"提交邮箱后上游报错: {error_text}")
+        # 与 grok-register 一样，提交后没反应就周期性再点一次提交，
+        # 避免首次点击落在按钮禁用/重渲染的瞬间。
+        now = time.time()
+        if now - last_nudge >= 5:
+            last_nudge = now
+            try:
+                page.evaluate(EMAIL_SUBMIT_JS)
+            except Exception:
+                pass
         page.wait_for_timeout(1000)
 
     # 收集现场证据，区分「人机验证没过」「上游报错」「域名被拒」三种情况。
@@ -295,6 +409,12 @@ def wait_for_code_step(page: Page, timeout: int = 45) -> None:
             "这通常是出口 IP 被判定为风险，请更换更干净的代理后重试。"
         )
     visible = str(state.get("text") or "").strip()
+    if email_signup_unavailable(page):
+        raise RuntimeError(
+            "提交邮箱后页面停留在 「Email sign-up isn't available right now」。"
+            "这通常表示当前出口被 xAI 标记，或提交按钮没有真正触发表单提交。"
+            f"页面内容: {visible or '（空）'}"
+        )
     raise RuntimeError(
         f"提交邮箱后未进入验证码页面（当前 URL={page.url}）。"
         f"页面可见内容: {visible or '（空）'}"
