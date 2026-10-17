@@ -256,7 +256,18 @@ for (const node of Array.from(document.querySelectorAll('input, textarea'))) {
     if (meta.includes('email') || meta.includes('e-mail') || meta.includes('mail') || meta.includes('邮箱') || meta.includes('电子邮件')) direct.push(node);
 }
 const input = Array.from(new Set(direct)).find((node) => isVisible(node) && !node.disabled && !node.readOnly) || null;
-if (!input) return JSON.stringify({ state: 'not-ready' });
+if (!input) {
+    const visibleInputs = Array.from(document.querySelectorAll('input, textarea'))
+        .filter((node) => isVisible(node) && !node.disabled && !node.readOnly)
+        .map((node) => [node.getAttribute('type'), node.getAttribute('name'), node.getAttribute('placeholder'), node.getAttribute('aria-label')].filter(Boolean).join('/'))
+        .slice(0, 6);
+    const visibleButtons = Array.from(document.querySelectorAll('button, a, [role="button"]'))
+        .filter((node) => isVisible(node) && !node.disabled && node.getAttribute('aria-disabled') !== 'true')
+        .map((node) => textOf(node).slice(0, 40))
+        .filter(Boolean)
+        .slice(0, 8);
+    return JSON.stringify({ state: 'not-ready', inputs: visibleInputs, buttons: visibleButtons, url: location.href });
+}
 input.focus(); input.click();
 const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
 const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
@@ -318,17 +329,33 @@ def fill_email(page: Page, address: str) -> None:
     Turnstile 是后续资料步骤才需要处理的东西。
     """
     deadline = time.time() + 60
+    last_reclick = 0.0
+    last_snapshot: dict[str, Any] = {}
     while time.time() < deadline:
         raw = page.evaluate(EMAIL_FILL_JS, address)
         try:
             state = json.loads(raw or "{}")
         except Exception:
             state = {}
+        last_snapshot = state
         if state.get("state") == "filled":
             break
+        # 页面刚加载完时首次点击可能落在尚未水合的元素上，
+        # 与 grok-register 一致：输入框没出现就周期性重新触发邮箱入口。
+        now = time.time()
+        if now - last_reclick >= 3:
+            last_reclick = now
+            clicked = page.evaluate(CLICK_EMAIL_SIGNUP_JS)
+            if clicked:
+                emit("progress", f"邮箱输入框未出现，重新触发注册入口（{str(clicked)[:30]}）")
         page.wait_for_timeout(500)
     else:
-        raise RuntimeError("提交邮箱前未找到可用的邮箱输入框")
+        inputs = " | ".join((last_snapshot.get("inputs") or [])[:6]) or "none"
+        buttons = " | ".join((last_snapshot.get("buttons") or [])[:8]) or "none"
+        url = last_snapshot.get("url") or page.url
+        raise RuntimeError(
+            f"提交邮箱前未找到可用的邮箱输入框（url={url}; inputs={inputs}; buttons={buttons}）"
+        )
 
     page.wait_for_timeout(600)
     clicked = page.evaluate(EMAIL_SUBMIT_JS)
