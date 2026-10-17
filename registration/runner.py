@@ -35,6 +35,10 @@ def emit(event_type: str, message: str = "", **fields: Any) -> None:
     print(json.dumps(payload, ensure_ascii=False), flush=True)
 
 
+class NonRetryableError(RuntimeError):
+    """不需要立即重试的错误（例如上游验证码频率限制）。"""
+
+
 def payload() -> dict[str, Any]:
     raw = os.environ.get("GROK_REGISTER_PAYLOAD", "")
     if not raw:
@@ -348,6 +352,20 @@ EMAIL_SIGNUP_UNAVAILABLE_MARKERS = (
     "sign up another way",
 )
 
+RATE_LIMIT_MARKERS = (
+    "too many code requests",
+    "please wait a few minutes",
+    "too many requests",
+)
+
+
+def page_rate_limited(page: Page) -> bool:
+    try:
+        text = (page.inner_text("body") or "").lower()
+    except Exception:
+        return False
+    return any(marker in text for marker in RATE_LIMIT_MARKERS)
+
 
 def email_signup_unavailable(page: Page) -> bool:
     try:
@@ -364,12 +382,18 @@ def wait_for_code_step(page: Page, timeout: int = 90) -> None:
     报错。先把原因说清楚，再去轮询邮箱，避免白等三分钟。
     """
     deadline = time.time() + timeout
-    last_nudge = 0.0
     while time.time() < deadline:
         for selector in CODE_STEP_SELECTORS:
             locator = page.locator(selector).first
             if locator.count() and locator.is_visible():
                 return
+        # 验证码框已经出现就继续；否则限流时立刻停下，
+        # 重复提交只会把冷却时间越拖越长。
+        if page_rate_limited(page):
+            raise NonRetryableError(
+                "xAI 限制了验证码请求频率（Too many code requests）。"
+                "这是按出口 IP 计数的，请等待几分钟后重试，或更换代理出口。"
+            )
         error_text = page.evaluate(
             """() => {
                 const el = document.querySelector(
@@ -380,15 +404,6 @@ def wait_for_code_step(page: Page, timeout: int = 90) -> None:
         )
         if error_text:
             raise RuntimeError(f"提交邮箱后上游报错: {error_text}")
-        # 与 grok-register 一样，提交后没反应就周期性再点一次提交，
-        # 避免首次点击落在按钮禁用/重渲染的瞬间。
-        now = time.time()
-        if now - last_nudge >= 5:
-            last_nudge = now
-            try:
-                page.evaluate(EMAIL_SUBMIT_JS)
-            except Exception:
-                pass
         page.wait_for_timeout(1000)
 
     # 收集现场证据，区分「人机验证没过」「上游报错」「域名被拒」三种情况。
@@ -713,6 +728,11 @@ def main() -> int:
             try:
                 run_one(config, attempt)
                 last_error = ""
+                break
+            except NonRetryableError as exc:
+                # 频率限制/策略拒绝，立即重试只会让冷却更久。
+                last_error = str(exc)
+                emit("progress", f"第 {attempt}/{max_attempts} 次尝试失败: {last_error}")
                 break
             except Exception as exc:
                 last_error = str(exc)
