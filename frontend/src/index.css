@@ -7,18 +7,18 @@
  * ============================================================================
  *  设计语言：暖色羊皮纸 + 陶土强调
  * ============================================================================
- *  取色与形状参考 workbuddy2api-hub 的用量看板：
- *    - 画布是暖调米白（#f7f5ef），面板纯白，次级面更深一点的暖灰
- *    - 强调色是陶土橙（#c96442），正向状态用苔绿（#5e8c4f）
+ *  取色与形状与 workbuddy2api-hub 的 Claude 主题保持一致：
+ *    - 画布是暖调米白（#efebe0），面板纯白，次级面更深一点的暖灰
+ *    - 强调色是深陶土（#a14427），正向状态用苔绿（#497035）
  *    - 圆角偏大：面板 12-14px，控件 8px，徽章药丸
  *    - 阴影很轻，靠 1px 暖色描边区分层次
  *    - 顶部导航半透明吸顶，标题用较紧的字距
  */
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
-  --background: #f7f5ef;
+  --background: #efebe0;
   --foreground: #1f1e1b;
 
   --card: #ffffff;
@@ -26,40 +26,40 @@
   --popover: #ffffff;
   --popover-foreground: #1f1e1b;
 
-  --primary: #c96442;
-  --primary-foreground: #fdf9f6;
+  --primary: #a14427;
+  --primary-foreground: #ffffff;
 
-  --secondary: #f1efe7;
+  --secondary: #e9e5d6;
   --secondary-foreground: #2c2a25;
-  --muted: #f1efe7;
-  --muted-foreground: #73716a;
-  --accent: #f4e5df;
-  --accent-foreground: #8f4327;
+  --muted: #e9e5d6;
+  --muted-foreground: #625f57;
+  --accent: #f3e4dd;
+  --accent-foreground: #8a3a20;
 
   --destructive: #b5473b;
-  --border: #e6e3d8;
-  --input: #d9d5c7;
-  --ring: #c96442;
+  --border: #d5cfbc;
+  --input: #c5bfab;
+  --ring: #a14427;
 
   /* 侧栏与顶栏同为暖白，靠描边区分 */
-  --sidebar: #fcfaf5;
-  --sidebar-foreground: #45433c;
-  --sidebar-primary: #c96442;
-  --sidebar-primary-foreground: #fdf9f6;
-  --sidebar-accent: #f1efe7;
+  --sidebar: #efebe0;
+  --sidebar-foreground: #625f57;
+  --sidebar-primary: #a14427;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9e5d6;
   --sidebar-accent-foreground: #1f1e1b;
-  --sidebar-border: #e6e3d8;
+  --sidebar-border: #d5cfbc;
 
   /* 语义色 */
-  --success: #5e8c4f;
+  --success: #497035;
   --warn: #a0691c;
-  --think: #8a6a96;
+  --think: #7d5c8a;
 
-  --quota-product-0: #8a8781;
+  --quota-product-0: #87847a;
   --quota-product-1: #5c7fa8;
-  --quota-product-2: #5e8c4f;
+  --quota-product-2: #497035;
   --quota-product-3: #b7791f;
-  --quota-product-4: #8a6a96;
+  --quota-product-4: #7d5c8a;
   --quota-product-5: #6a74a8;
   --quota-product-6: #b5473b;
 }
@@ -68,33 +68,33 @@
   --background: #1f1e1b;
   --foreground: #edebe3;
 
-  --card: #292823;
+  --card: #2d2c25;
   --card-foreground: #edebe3;
-  --popover: #292823;
+  --popover: #2d2c25;
   --popover-foreground: #edebe3;
 
-  --primary: #d97757;
-  --primary-foreground: #241a15;
+  --primary: #e88a68;
+  --primary-foreground: #1f1e1b;
 
-  --secondary: #33312b;
-  --secondary-foreground: #e6e3da;
-  --muted: #33312b;
+  --secondary: #38362f;
+  --secondary-foreground: #edebe3;
+  --muted: #38362f;
   --muted-foreground: #a5a29a;
-  --accent: #402f28;
-  --accent-foreground: #f0d3c6;
+  --accent: #40352f;
+  --accent-foreground: #f5c8b5;
 
   --destructive: #d97b72;
-  --border: #403e37;
-  --input: #4d4a41;
-  --ring: #d97757;
+  --border: #4f4b42;
+  --input: #5d584e;
+  --ring: #e88a68;
 
-  --sidebar: #24231f;
+  --sidebar: #1f1e1b;
   --sidebar-foreground: #c9c6bd;
-  --sidebar-primary: #d97757;
-  --sidebar-primary-foreground: #241a15;
-  --sidebar-accent: #33312b;
+  --sidebar-primary: #e88a68;
+  --sidebar-primary-foreground: #1f1e1b;
+  --sidebar-accent: #38362f;
   --sidebar-accent-foreground: #f0eee6;
-  --sidebar-border: #3a3831;
+  --sidebar-border: #4f4b42;
 
   --success: #8fae78;
   --warn: #d9b25f;
@@ -211,6 +211,13 @@ body {
   line-height: 1.5;
   letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: 0;
 }
 
 ::selection {

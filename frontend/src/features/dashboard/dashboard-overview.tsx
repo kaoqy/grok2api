@@ -31,8 +31,8 @@ export function DashboardOverview({ dashboard, locale, loading }: DashboardDataP
     : t(hasFirstTokenSamples ? "audits.throughputPending" : "audits.performancePending");
 
   return (
-    <section aria-label={t("dashboard.usage")}>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-[var(--shadow-panel)]" aria-label={t("dashboard.usage")}>
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4">
         <DashboardMetric
           icon={UsersRound}
           label={t("dashboard.accountCount")}
@@ -61,21 +61,23 @@ export function DashboardOverview({ dashboard, locale, loading }: DashboardDataP
           detail={t("dashboard.averageRequestCost", { cost: formatUSDValue(averageRequestCost, locale) })}
           loading={loading}
         />
-        <DashboardMetric
+      </div>
+      <div className="grid border-t border-border bg-secondary/55 md:grid-cols-3">
+        <DashboardSecondaryMetric
           icon={Gauge}
           label={t("audits.averageFirstToken")}
           value={hasFirstTokenSamples ? formatDuration(usage?.averageFirstTokenMs ?? 0) : "—"}
           detail={performanceDetail}
           loading={loading}
         />
-        <DashboardMetric
+        <DashboardSecondaryMetric
           icon={UserPlus}
           label={t("dashboard.todayRegistered")}
           value={formatNumber(registration?.todayStarted ?? 0, locale)}
           detail={t("dashboard.todayRegistrationDetail", { success: formatNumber(registration?.todaySuccess ?? 0, locale), failed: formatNumber(registration?.todayFailed ?? 0, locale) })}
           loading={loading}
         />
-        <DashboardMetric
+        <DashboardSecondaryMetric
           icon={UserPlus}
           label={t("dashboard.todayConverted")}
           value={formatNumber(registration?.todayConverted ?? 0, locale)}
@@ -178,16 +180,33 @@ export function DashboardResources({ dashboard, locale, loading }: DashboardData
 
 function DashboardMetric({ icon: Icon, label, value, detail, loading }: { icon: LucideIcon; label: string; value: string; detail: string; loading: boolean }) {
   return (
-    <article className="group min-h-28 rounded-xl border bg-card px-[18px] py-3.5 shadow-panel transition-colors hover:border-input" aria-busy={loading}>
+    <article className="group min-h-[126px] border-b border-border px-5 py-4 transition-colors even:bg-secondary/20 hover:bg-secondary/35 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:[&:nth-child(2n)]:border-r xl:[&:nth-child(4n)]:border-r-0" aria-busy={loading}>
       <header className="flex min-h-5 items-center justify-between gap-3">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+        <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-secondary text-muted-foreground transition-colors group-hover:border-primary/20 group-hover:bg-accent group-hover:text-primary">
           <Icon className="size-3.5" />
         </span>
       </header>
-      <div className="mt-2 flex min-h-8 items-center text-2xl font-bold leading-8 tracking-normal tabular-nums">{loading ? <Spinner /> : value}</div>
+      <div className="mt-3 flex min-h-9 items-center text-[28px] font-bold leading-9 tracking-normal tabular-nums">{loading ? <Spinner /> : value}</div>
       <p className={cn("mt-1 min-h-4 truncate text-[11px] text-muted-foreground", loading && "invisible")} title={detail}>{detail}</p>
     </article>
+  );
+}
+
+function DashboardSecondaryMetric({ icon: Icon, label, value, detail, loading }: { icon: LucideIcon; label: string; value: string; detail: string; loading: boolean }) {
+  return (
+    <div className="flex min-h-[82px] items-center gap-3 border-b border-border px-5 py-3 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-card text-primary shadow-[var(--shadow-panel)]">
+        <Icon className="size-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+        <p className="mt-1 flex items-baseline gap-2 text-lg font-bold tabular-nums">
+          {loading ? <Spinner className="size-4" /> : value}
+          <span className="min-w-0 truncate text-[10px] font-normal text-muted-foreground">{detail}</span>
+        </p>
+      </div>
+    </div>
   );
 }
 

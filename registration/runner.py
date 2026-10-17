@@ -28,6 +28,8 @@ DEVICE_CODE_URL = "https://auth.x.ai/oauth2/device/code"
 DEVICE_VERIFY_URL = "https://auth.x.ai/oauth2/device/verify"
 DEVICE_TOKEN_URL = "https://auth.x.ai/oauth2/token"
 
+REJECTED_EMAIL_DOMAINS: set[str] = set()
+
 
 def emit(event_type: str, message: str = "", **fields: Any) -> None:
     payload = {"type": event_type, "message": message}
@@ -37,6 +39,10 @@ def emit(event_type: str, message: str = "", **fields: Any) -> None:
 
 class NonRetryableError(RuntimeError):
     """不需要立即重试的错误（例如上游验证码频率限制）。"""
+
+
+class EmailDomainRejected(RuntimeError):
+    """xAI 拒绝该收信域名；可以换下一个域名继续，不必重启浏览器。"""
 
 
 def payload() -> dict[str, Any]:
@@ -60,6 +66,26 @@ def random_profile() -> dict[str, str]:
     first = random.choice(["Alex", "Mason", "Louis", "Lucas", "Blake", "Oscar", "Leo", "Ethan"])
     last = random.choice(["Xu", "Cao", "Fan", "Lin", "Zhao", "Chen", "Wang"])
     return {"name": f"{first} {last}", "given": first, "family": last, "birthday": "1995-06-15"}
+
+
+def parse_domains(raw_domains: str) -> list[str]:
+    """Normalize the administrator-configured receiving-domain list."""
+    values: list[str] = []
+    seen: set[str] = set()
+    for item in str(raw_domains or "").replace("，", ",").split(","):
+        domain = item.strip().lower()
+        if not domain or domain in seen:
+            continue
+        seen.add(domain)
+        values.append(domain)
+    return values
+
+
+def order_domains(domains: list[str], rejected: set[str]) -> list[str]:
+    """Prefer domains that have not already been rejected by xAI."""
+    healthy = [domain for domain in domains if domain not in rejected]
+    unhealthy = [domain for domain in domains if domain in rejected]
+    return healthy + unhealthy
 
 
 def playwright_proxy(raw: str) -> dict[str, str] | None:
@@ -219,6 +245,7 @@ def click_email_signup(page: Page) -> None:
     """
     deadline = time.time() + 60
     while time.time() < deadline:
+        raise_if_blocked(page)
         clicked = page.evaluate(CLICK_EMAIL_SIGNUP_JS)
         if clicked:
             emit("progress", f"已点击邮箱注册入口（{clicked[:40]}）")
@@ -332,6 +359,7 @@ def fill_email(page: Page, address: str) -> None:
     last_reclick = 0.0
     last_snapshot: dict[str, Any] = {}
     while time.time() < deadline:
+        raise_if_blocked(page)
         raw = page.evaluate(EMAIL_FILL_JS, address)
         try:
             state = json.loads(raw or "{}")
@@ -394,6 +422,29 @@ def page_rate_limited(page: Page) -> bool:
     return any(marker in text for marker in RATE_LIMIT_MARKERS)
 
 
+CLOUDFLARE_BLOCK_MARKERS = (
+    "you have been blocked",
+    "unable to access x.ai",
+    "attention required",
+)
+
+
+def page_cloudflare_blocked(page: Page) -> bool:
+    try:
+        text = (page.inner_text("body") or "").lower()
+    except Exception:
+        return False
+    return any(marker in text for marker in CLOUDFLARE_BLOCK_MARKERS)
+
+
+def raise_if_blocked(page: Page) -> None:
+    if page_cloudflare_blocked(page):
+        raise NonRetryableError(
+            "Cloudflare 已拦截当前出口 IP（Sorry, you have been blocked）。"
+            "请更换更干净的代理节点并等待一段时间后再试。"
+        )
+
+
 def email_signup_unavailable(page: Page) -> bool:
     try:
         text = (page.inner_text("body") or "").lower()
@@ -409,7 +460,9 @@ def wait_for_code_step(page: Page, timeout: int = 90) -> None:
     报错。先把原因说清楚，再去轮询邮箱，避免白等三分钟。
     """
     deadline = time.time() + timeout
+    started = time.time()
     while time.time() < deadline:
+        raise_if_blocked(page)
         for selector in CODE_STEP_SELECTORS:
             locator = page.locator(selector).first
             if locator.count() and locator.is_visible():
@@ -421,6 +474,9 @@ def wait_for_code_step(page: Page, timeout: int = 90) -> None:
                 "xAI 限制了验证码请求频率（Too many code requests）。"
                 "这是按出口 IP 计数的，请等待几分钟后重试，或更换代理出口。"
             )
+        # 给页面几秒渲染时间再判定域名被拒，避免把中间态误判成拒绝。
+        if time.time() - started >= 6 and email_signup_unavailable(page):
+            raise EmailDomainRejected("xAI 拒绝了当前收信域名")
         error_text = page.evaluate(
             """() => {
                 const el = document.querySelector(
@@ -452,10 +508,8 @@ def wait_for_code_step(page: Page, timeout: int = 90) -> None:
         )
     visible = str(state.get("text") or "").strip()
     if email_signup_unavailable(page):
-        raise RuntimeError(
-            "提交邮箱后页面停留在 「Email sign-up isn't available right now」。"
-            "这通常表示当前出口被 xAI 标记，或提交按钮没有真正触发表单提交。"
-            f"页面内容: {visible or '（空）'}"
+        raise EmailDomainRejected(
+            f"xAI 拒绝了当前收信域名。页面内容: {visible or '（空）'}"
         )
     raise RuntimeError(
         f"提交邮箱后未进入验证码页面（当前 URL={page.url}）。"
@@ -679,17 +733,36 @@ def run_one(payload: dict[str, Any], attempt: int = 1) -> dict[str, str]:
         page.goto("https://accounts.x.ai/sign-up?redirect=grok-com", wait_until="domcontentloaded", timeout=90000)
         click_email_signup(page)
         emit("progress", "已进入注册页")
-        address, mailbox_token = create_mailbox(
-            context,
-            str(payload.get("apiBase") or ""),
-            str(payload.get("apiKey") or ""),
-            str(payload.get("pathAccounts") or "/admin/new_address"),
-            str(payload.get("defaultDomains") or ""),
-        )
-        emit("progress", f"已创建邮箱 {address}", email=address)
-        fill_email(page, address)
-        # 提交后必须先确认页面进入验证码步骤，否则说明邮件根本没发出。
-        wait_for_code_step(page)
+        raw_domains = order_domains(
+            parse_domains(str(payload.get("defaultDomains") or "")),
+            REJECTED_EMAIL_DOMAINS,
+        ) or [""]
+        address = ""
+        mailbox_token = ""
+        accepted = False
+        rejection = ""
+        for domain in raw_domains:
+            address, mailbox_token = create_mailbox(
+                context,
+                str(payload.get("apiBase") or ""),
+                str(payload.get("apiKey") or ""),
+                str(payload.get("pathAccounts") or "/admin/new_address"),
+                domain,
+            )
+            emit("progress", f"已创建邮箱 {address}", email=address)
+            fill_email(page, address)
+            try:
+                wait_for_code_step(page)
+                accepted = True
+                break
+            except EmailDomainRejected as exc:
+                rejection = str(exc)
+                REJECTED_EMAIL_DOMAINS.add(domain.lower())
+                emit("progress", f"域名 {domain or '（默认）'} 被 xAI 拒绝，换下一个域名重试")
+                # 页面仍停留在邮箱表单，直接换新地址重新提交即可。
+                continue
+        if not accepted:
+            raise RuntimeError(f"所有收信域名都被 xAI 拒绝：{rejection or '无可用域名'}")
         emit("progress", "已提交邮箱，等待验证码邮件")
         debug_dir = str(payload.get("debugDir") or "").strip()
         if debug_dir:

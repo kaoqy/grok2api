@@ -65,8 +65,9 @@ export function AppShell() {
     }
   }
 
-  // 顶栏标签：当前项用白底卡片浮起，与参考看板的分段控件一致。
-  function navigationLinks(): ReactNode {
+  // 顶栏标签采用 WorkBuddy 的胶囊分段导航：整组落在次级暖色底上，
+  // 当前项用白底、细描边和浅阴影浮起。
+  function navigationLinks(mobile = false): ReactNode {
     return navigation.map(({ href, label, icon: Icon }) => (
       <NavLink
         key={href}
@@ -74,8 +75,9 @@ export function AppShell() {
         onClick={() => setMobileOpen(false)}
         className={({ isActive }) =>
           cn(
-            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-            isActive && "bg-card text-foreground shadow-[var(--shadow-panel)]",
+            "inline-flex shrink-0 items-center gap-1.5 border border-transparent font-medium text-muted-foreground transition-[background-color,border-color,color,box-shadow] hover:bg-card/70 hover:text-foreground",
+            mobile ? "h-9 w-full rounded-md px-3 text-sm" : "h-8 rounded-[7px] px-3 text-[12px]",
+            isActive && "border-border bg-card font-semibold text-foreground shadow-[var(--shadow-panel)]",
           )
         }
       >
@@ -120,23 +122,26 @@ export function AppShell() {
   );
 
   const brand = (
-    <Link to="/dashboard" className="flex min-w-0 shrink-0 items-baseline gap-2">
-      <span className="flex size-6 shrink-0 items-center justify-center self-center rounded-md bg-primary text-[12px] font-bold text-primary-foreground">G</span>
-      <span className="truncate text-[15px] font-bold tracking-normal text-foreground">{t("appName")}</span>
+    <Link to="/dashboard" className="flex min-w-0 shrink-0 items-center gap-2.5">
+      <span className="relative flex size-2.5 shrink-0 items-center justify-center">
+        <span className="absolute inset-0 rounded-full bg-success/20" />
+        <span className="relative size-1.5 rounded-full bg-success" />
+      </span>
+      <span className="truncate text-[17px] font-bold tracking-normal text-foreground">{t("appName")}</span>
       <CurrentVersionLabel />
     </Link>
   );
 
   const desktopHeader = (
-    <header className="sticky top-0 z-40 hidden border-b bg-[color-mix(in_oklab,var(--card)_92%,transparent)] backdrop-blur-md lg:block">
-      <div className="mx-auto flex h-[60px] max-w-[2000px] items-center gap-4 px-4 xl:px-7">
+    <header className="sticky top-0 z-40 hidden border-b bg-[color-mix(in_oklab,var(--background)_92%,transparent)] shadow-[var(--shadow-panel)] backdrop-blur-[10px] lg:block">
+      <div className="mx-auto flex min-h-16 max-w-[2000px] items-center gap-4 px-[clamp(14px,1.4vw,28px)] py-3">
         {brand}
-        <nav className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t("shell.navigation")}>
+        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-[10px] border border-border bg-secondary p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t("shell.navigation")}>
           {navigationLinks()}
         </nav>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
           {accountMenu}
-          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" asChild>
+          <Button variant="ghost" size="icon" className="size-[34px] border border-border bg-card text-muted-foreground shadow-[var(--shadow-panel)] hover:border-input hover:bg-secondary" asChild>
             <a href="https://github.com/kaoqy/grok2api" target="_blank" rel="noreferrer" aria-label="GitHub">
               <GitHubMark />
             </a>
@@ -144,8 +149,8 @@ export function AppShell() {
           <NavLink
             to="/settings"
             className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-              settingsActive && "bg-secondary text-foreground",
+              "flex size-[34px] shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground shadow-[var(--shadow-panel)] transition-colors hover:border-input hover:bg-secondary hover:text-foreground",
+              settingsActive && "border-primary/45 bg-accent text-accent-foreground",
             )}
             aria-label={t("nav.settings")}
           >
@@ -160,7 +165,7 @@ export function AppShell() {
     <div className="min-h-screen bg-background">
       {desktopHeader}
 
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b bg-[color-mix(in_oklab,var(--card)_92%,transparent)] px-4 backdrop-blur-md lg:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b bg-[color-mix(in_oklab,var(--background)_92%,transparent)] px-4 shadow-[var(--shadow-panel)] backdrop-blur-[10px] lg:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8" aria-label={t("shell.openNavigation")}><Menu className="size-4" /></Button>
@@ -172,7 +177,7 @@ export function AppShell() {
               <SheetDescription className="sr-only">{t("shell.navigation")}</SheetDescription>
             </SheetHeader>
             <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3" aria-label={t("shell.navigation")}>
-              {navigationLinks()}
+              {navigationLinks(true)}
               <NavLink
                 to="/settings"
                 onClick={() => setMobileOpen(false)}
@@ -193,7 +198,7 @@ export function AppShell() {
         {accountMenu}
       </header>
 
-      <main className={cn("mx-auto w-full max-w-[2000px] px-4 sm:px-5 xl:px-7", isMediaWorkspace ? "pt-5 pb-0" : "py-5")}>
+      <main className={cn("mx-auto w-full max-w-[2000px] px-[clamp(14px,1.4vw,28px)]", isMediaWorkspace ? "pt-5 pb-0" : "py-5")}>
         <Outlet />
       </main>
       {!isMediaWorkspace ? <SiteFooter /> : null}

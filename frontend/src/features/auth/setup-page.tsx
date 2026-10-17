@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
+import { ShieldCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { getSetupStatus } from "@/features/auth/setup-api";
 import { useAuth } from "@/shared/auth/use-auth";
+import { GitHubMark } from "@/shared/components/github-mark";
 
 export function SetupPage() {
   const { t } = useTranslation();
@@ -29,13 +31,14 @@ export function SetupPage() {
       message: t("auth.passwordMismatch"),
     });
   type SetupForm = z.infer<typeof schema>;
-  const form = useForm<SetupForm>({ resolver: zodResolver(schema), defaultValues: { username: "", password: "", confirm: "" } });
+  const form = useForm<SetupForm>({
+    resolver: zodResolver(schema),
+    defaultValues: { username: "", password: "", confirm: "" },
+  });
 
   async function submit(values: SetupForm): Promise<void> {
     try {
       await setup(values.username, values.password);
-      // 初始化成功后 AuthProvider 会把状态切到 authenticated，
-      // 由下面的重定向接管跳转，无需在提交回调里再手动导航。
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.generic"));
     }
@@ -54,28 +57,85 @@ export function SetupPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-5">
-      <div className="w-full max-w-sm">
-        <h1 className="text-xl font-medium">{t("auth.setupTitle")}</h1>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("auth.setupDescription")}</p>
-        <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(submit)}>
-          <div className="space-y-2">
-            <Label htmlFor="setup-username">{t("auth.username")}</Label>
-            <Input id="setup-username" className="h-9 bg-card" autoComplete="username" autoFocus {...form.register("username")} />
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="flex h-16 items-center justify-between border-b border-border/70 px-[clamp(18px,3vw,44px)]">
+        <div className="flex items-center gap-2.5 text-[16px] font-bold">
+          <span className="relative flex size-2.5 items-center justify-center">
+            <span className="absolute inset-0 rounded-full bg-success/20" />
+            <span className="relative size-1.5 rounded-full bg-success" />
+          </span>
+          {t("appName")}
+        </div>
+        <a
+          className="flex size-[34px] items-center justify-center rounded-md border border-border bg-card text-muted-foreground shadow-[var(--shadow-panel)] transition-colors hover:border-input hover:bg-secondary hover:text-foreground"
+          href="https://github.com/kaoqy/grok2api"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="GitHub"
+        >
+          <GitHubMark />
+        </a>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center px-5 py-10">
+        <section className="w-full max-w-[430px] overflow-hidden rounded-[14px] border border-border bg-card shadow-[var(--shadow-float)]">
+          <div className="border-b border-border bg-secondary/55 px-6 py-5 sm:px-7">
+            <span className="flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-accent text-primary">
+              <ShieldCheck className="size-4" />
+            </span>
+            <h1 className="mt-4 text-xl font-bold">{t("auth.setupTitle")}</h1>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("auth.setupDescription")}</p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="setup-password">{t("auth.password")}</Label>
-            <Input id="setup-password" className="h-9 bg-card" type="password" autoComplete="new-password" {...form.register("password")} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="setup-confirm">{t("auth.confirmPassword")}</Label>
-            <Input id="setup-confirm" className="h-9 bg-card" type="password" autoComplete="new-password" {...form.register("confirm")} />
-          </div>
-          <Button type="submit" size="sm" className="w-full" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? t("auth.settingUp") : t("auth.setupAction")}
-          </Button>
-        </form>
-      </div>
+
+          <form className="space-y-5 px-6 py-6 sm:px-7" onSubmit={form.handleSubmit(submit)}>
+            <div className="space-y-2">
+              <Label htmlFor="setup-username">{t("auth.username")}</Label>
+              <Input
+                id="setup-username"
+                className="h-10 bg-secondary/60"
+                autoComplete="username"
+                autoFocus
+                aria-invalid={Boolean(form.formState.errors.username)}
+                {...form.register("username")}
+              />
+              {form.formState.errors.username ? (
+                <p className="text-xs text-destructive">{form.formState.errors.username.message}</p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="setup-password">{t("auth.password")}</Label>
+              <Input
+                id="setup-password"
+                className="h-10 bg-secondary/60"
+                type="password"
+                autoComplete="new-password"
+                aria-invalid={Boolean(form.formState.errors.password)}
+                {...form.register("password")}
+              />
+              {form.formState.errors.password ? (
+                <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="setup-confirm">{t("auth.confirmPassword")}</Label>
+              <Input
+                id="setup-confirm"
+                className="h-10 bg-secondary/60"
+                type="password"
+                autoComplete="new-password"
+                aria-invalid={Boolean(form.formState.errors.confirm)}
+                {...form.register("confirm")}
+              />
+              {form.formState.errors.confirm ? (
+                <p className="text-xs text-destructive">{form.formState.errors.confirm.message}</p>
+              ) : null}
+            </div>
+            <Button type="submit" className="h-10 w-full" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? t("auth.settingUp") : t("auth.setupAction")}
+            </Button>
+          </form>
+        </section>
+      </main>
     </div>
   );
 }
