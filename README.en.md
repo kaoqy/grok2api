@@ -71,8 +71,8 @@ password, then sign in.
 ### Pin a release
 
 ```bash
-GROK2API_IMAGE=ghcr.io/kaoqy/grok2api:v1.0.0 \
-  curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/install.sh \
+  | GROK2API_IMAGE=ghcr.io/kaoqy/grok2api:v1.0.0 bash
 ```
 
 ### Custom parameters
