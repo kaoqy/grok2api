@@ -204,11 +204,10 @@ def fill_email(page: Page, address: str) -> None:
         password.fill(random_password())
         password.dispatch_event("input")
         password.dispatch_event("change")
-    # 提交按钮在人机验证通过前通常是禁用的，先给它一点时间。
-    try:
-        wait_for_turnstile(page, timeout=45)
-    except RuntimeError:
-        pass
+    # 提交按钮在人机验证通过前通常是禁用的。拿不到 token 时不能硬提交，
+    # 否则 xAI 会误报 "Email sign-up isn't available right now"。
+    if turnstile_present(page):
+        wait_for_turnstile(page, timeout=60)
     for selector in [
         "button[type=submit]",
         "button:has-text('Continue')",
@@ -374,6 +373,20 @@ def wait_for_turnstile(page: Page, timeout: int = 150) -> None:
     raise RuntimeError("Turnstile 验证超时")
 
 
+def turnstile_present(page: Page) -> bool:
+    try:
+        return bool(
+            page.evaluate(
+                """() => Boolean(
+                    document.querySelector('input[name="cf-turnstile-response"]') ||
+                    document.querySelector('iframe[src*="challenges.cloudflare.com"]')
+                )"""
+            )
+        )
+    except Exception:
+        return False
+
+
 def read_sso(context: BrowserContext, page: Page, timeout: int = 180) -> str:
     deadline = time.time() + timeout
     emitted = False
@@ -490,6 +503,15 @@ def run_one(payload: dict[str, Any], attempt: int = 1) -> dict[str, str]:
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
             ),
             viewport={"width": 1280, "height": 900},
+            locale="en-US",
+            timezone_id="America/New_York",
+        )
+        # 去掉最常见的自动化指纹，降低 Turnstile 直接判为机器人的概率。
+        context.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
+            "Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });"
+            "Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });"
+            "window.chrome = window.chrome || { runtime: {} };"
         )
         page = context.new_page()
         page.goto("https://accounts.x.ai/sign-up?redirect=grok-com", wait_until="domcontentloaded", timeout=90000)

@@ -203,8 +203,9 @@ registration:
   messagesPath: "/api/mails"
   # 收信域名，多个用英文逗号分隔。
   defaultDomains: ""
-  # [通常不要修改] 容器内必须保持 true。
-  headless: true
+  # [按需修改] false 会用 Xvfb 跑有头浏览器，Turnstile 通过率明显更高；
+  # true 更省资源，但更容易被判定为机器人。
+  headless: false
   # [按需修改] 容器内 Chromium/Chrome 可执行文件路径；留空自动探测。
   chromiumPath: "/usr/bin/chromium"
   # [按需修改] 单个注册批次的最长运行时间。

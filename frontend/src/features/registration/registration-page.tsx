@@ -217,6 +217,7 @@ function RegistrationSettingsPanel({
   const [enabled, setEnabled] = useState(initial.enabled);
   const [autoEnabled, setAutoEnabled] = useState(initial.autoEnabled);
   const [dailyTarget, setDailyTarget] = useState(initial.dailyTarget || 10);
+  const [headless, setHeadless] = useState(initial.headless);
   const [mailBase, setMailBase] = useState(initial.mailBase);
   const [mailToken, setMailToken] = useState(initial.mailToken);
   const [mailPath, setMailPath] = useState(initial.mailPath);
@@ -226,6 +227,7 @@ function RegistrationSettingsPanel({
       enabled,
       autoEnabled,
       dailyTarget,
+      headless,
       mailBase: mailBase.trim(),
       mailToken: mailToken.trim(),
       mailPath: mailPath.trim(),
@@ -263,6 +265,15 @@ function RegistrationSettingsPanel({
         checked={autoEnabled}
         disabled={disabled || !enabled}
         onChange={setAutoEnabled}
+      />
+
+      <ToggleRow
+        id="registration-headless"
+        title={t("registration.headlessTitle")}
+        description={t("registration.headlessDescription")}
+        checked={headless}
+        disabled={disabled}
+        onChange={setHeadless}
       />
 
       <div className="space-y-2">

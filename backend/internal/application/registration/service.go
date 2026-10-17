@@ -151,6 +151,8 @@ type Settings struct {
 	Enabled     bool `json:"enabled"`
 	AutoEnabled bool `json:"autoEnabled"`
 	DailyTarget int  `json:"dailyTarget"`
+	// Headless=false 会在容器内用 Xvfb 跑有头浏览器，Turnstile 通过率更高。
+	Headless bool `json:"headless"`
 	// 临时邮箱服务配置，可在管理后台填写，保存后立即生效并持久化。
 	MailBase    string `json:"mailBase"`
 	MailToken   string `json:"mailToken"`
@@ -171,6 +173,7 @@ func (s *Service) settingsLocked() Settings {
 		Enabled:     s.cfg.Enabled,
 		AutoEnabled: s.cfg.AutoEnabled,
 		DailyTarget: s.cfg.DailyTarget,
+		Headless:    s.cfg.Headless,
 		MailBase:    s.cfg.CloudmailBase,
 		MailToken:   s.cfg.CloudmailToken,
 		MailPath:    s.cfg.CloudmailPath,
@@ -206,6 +209,7 @@ func (s *Service) UpdateSettings(settings Settings) error {
 	s.cfg.Enabled = settings.Enabled
 	s.cfg.AutoEnabled = settings.AutoEnabled
 	s.cfg.DailyTarget = settings.DailyTarget
+	s.cfg.Headless = settings.Headless
 	s.cfg.CloudmailBase = mailBase
 	s.cfg.CloudmailToken = mailToken
 	s.cfg.CloudmailPath = mailPath
@@ -219,6 +223,7 @@ func (s *Service) UpdateSettings(settings Settings) error {
 		Enabled:     &snapshot.Enabled,
 		AutoEnabled: snapshot.AutoEnabled,
 		DailyTarget: snapshot.DailyTarget,
+		Headless:    &snapshot.Headless,
 		MailBase:    snapshot.MailBase,
 		MailToken:   snapshot.MailToken,
 		MailPath:    snapshot.MailPath,
@@ -244,6 +249,9 @@ func NewService(cfg Config, accounts AccountImporter, egress EgressBinder, logge
 	} else if found {
 		if persisted.Enabled != nil {
 			service.cfg.Enabled = *persisted.Enabled
+		}
+		if persisted.Headless != nil {
+			service.cfg.Headless = *persisted.Headless
 		}
 		service.cfg.AutoEnabled = persisted.AutoEnabled
 		service.cfg.DailyTarget = persisted.DailyTarget
@@ -588,7 +596,17 @@ func (s *Service) runner(ctx context.Context, count int, proxyNodeID uint64, pro
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, python, runnerPath)
+	// 有头模式需要 X 显示；容器里用 Xvfb 提供虚拟显示，
+	// 这比 headless 更不容易被 Turnstile 判定为机器人。
+	command := python
+	args := []string{runnerPath}
+	if !cfg.Headless {
+		if xvfb, err := exec.LookPath("xvfb-run"); err == nil {
+			command = xvfb
+			args = []string{"-a", python, runnerPath}
+		}
+	}
+	cmd := exec.CommandContext(runCtx, command, args...)
 	cmd.Dir = cfg.WorkDir
 	cmd.Env = append(os.Environ(), "GROK_REGISTER_PAYLOAD="+string(payloadBytes))
 	stdout, err := cmd.StdoutPipe()

@@ -44,6 +44,7 @@ export type RegistrationSettings = {
   enabled: boolean;
   autoEnabled: boolean;
   dailyTarget: number;
+  headless: boolean;
   mailBase: string;
   mailToken: string;
   mailPath: string;
@@ -92,6 +93,7 @@ const settingsShape = {
   enabled: isBoolean,
   autoEnabled: isBoolean,
   dailyTarget: isNumber,
+  headless: isBoolean,
   mailBase: isString,
   mailToken: isString,
   mailPath: isString,

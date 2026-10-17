@@ -118,7 +118,7 @@ registration:
   cloudflareKey: ""
   messagesPath: "/api/mails"
   defaultDomains: ""
-  headless: true
+  headless: false
   chromiumPath: "/usr/bin/chromium"
   timeout: 30m
 YAML

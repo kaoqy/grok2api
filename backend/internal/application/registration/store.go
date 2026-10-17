@@ -18,6 +18,7 @@ type storedSettings struct {
 	Enabled     *bool  `json:"enabled,omitempty"`
 	AutoEnabled bool   `json:"autoEnabled"`
 	DailyTarget int    `json:"dailyTarget"`
+	Headless    *bool  `json:"headless,omitempty"`
 	MailBase    string `json:"mailBase"`
 	MailToken   string `json:"mailToken"`
 	MailPath    string `json:"mailPath"`
