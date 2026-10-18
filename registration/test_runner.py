@@ -2,7 +2,7 @@ import unittest
 import calendar
 import time
 
-from registration.drission_runner import mail_received_after
+from registration.drission_runner import classify_email_step_text, mail_received_after
 from registration.runner import order_domains, parse_domains, turnstile_checkbox_point, unavailable_signup_kind
 
 
@@ -41,6 +41,12 @@ class DomainOrderingTest(unittest.TestCase):
                 {"created_at": "2026-10-18 09:02:31"},
                 cutoff,
             )
+        )
+
+    def test_email_signup_unavailable_is_classified_as_exit_risk(self):
+        self.assertEqual(
+            classify_email_step_text("Email sign-up isn’t available right now. Sign up another way."),
+            "exit_risk",
         )
 
 

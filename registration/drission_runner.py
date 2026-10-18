@@ -167,6 +167,32 @@ def mail_received_after(row: dict[str, Any], cutoff: float) -> bool:
     return received >= cutoff
 
 
+def classify_email_step_text(text: str) -> str:
+    value = str(text or "").lower()
+    if any(
+        marker in value
+        for marker in (
+            "email sign-up isn’t available",
+            "email sign-up isn't available",
+            "sign up another way",
+        )
+    ):
+        return "exit_risk"
+    if any(marker in value for marker in ("too many code requests", "too many requests", "please wait")):
+        return "rate_limited"
+    if "invalid" in value and "email" in value:
+        return "domain_rejected"
+    return "unknown"
+
+
+def probe_exit_ip(proxy: str) -> str:
+    try:
+        payload = http_json("https://api.ipify.org?format=json", proxy=proxy, timeout=20)
+        return str(payload.get("ip") or "")
+    except Exception:
+        return ""
+
+
 def fetch_code(api_base: str, path: str, token: str, timeout: int = 180, cutoff: float = 0) -> str:
     deadline = time.time() + timeout
     last_count = 0
@@ -345,6 +371,9 @@ def convert_to_build(tab, proxy: str, timeout: int = 180) -> dict[str, str]:
 
 def run_one(cfg: dict[str, Any]) -> None:
     proxy = str(cfg.get("proxy") or "")
+    exit_ip = probe_exit_ip(proxy)
+    if exit_ip:
+        emit("progress", f"当前注册出口 IP: {exit_ip}")
     browser = Chromium(browser_options(proxy))
     try:
         tab = browser.latest_tab
@@ -394,7 +423,17 @@ def run_one(cfg: dict[str, Any]) -> None:
             if code_input:
                 break
             body = tab.ele("tag:body").text.lower()
-            if "invalid" in body and domain:
+            kind = classify_email_step_text(body)
+            if kind == "exit_risk":
+                raise NonRetryableError(
+                    f"xAI 临时关闭了当前出口的邮箱注册（IP {exit_ip or '未知'}）。"
+                    "请等待冷却或更换代理节点，系统已停止立即重试。"
+                )
+            if kind == "rate_limited":
+                raise NonRetryableError(
+                    f"xAI 验证码请求受限（IP {exit_ip or '未知'}）。请等待几分钟或更换代理。"
+                )
+            if kind == "domain_rejected" and domain:
                 REJECTED_EMAIL_DOMAINS.add(domain)
                 emit("progress", f"域名 {domain} 被 xAI 拒绝")
                 continue
