@@ -53,7 +53,7 @@ ENV TZ=Asia/Shanghai \
     XDG_CACHE_HOME=/home/grok2api/.cache
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates gosu tzdata wget xvfb \
+      ca-certificates gosu tzdata wget xvfb xauth \
       python3 python3-venv python3-pip \
       chromium fonts-freefont-ttf \
       libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \

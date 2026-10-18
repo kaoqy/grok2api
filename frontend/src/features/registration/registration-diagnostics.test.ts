@@ -21,6 +21,13 @@ describe("diagnoseRegistrationFailure", () => {
     );
   });
 
+  it("classifies a missing xauth dependency as a browser-runtime failure", () => {
+    assert.equal(
+      diagnoseRegistrationFailure(["xvfb-run: xauth command not found; exiting."]),
+      "browser",
+    );
+  });
+
   it("detects verification-code rate limiting", () => {
     assert.equal(
       diagnoseRegistrationFailure(["xAI 限制了验证码请求频率（Too many code requests）"]),

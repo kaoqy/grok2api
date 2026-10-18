@@ -620,6 +620,7 @@ func (s *Service) runner(ctx context.Context, count int, proxyNodeID uint64, pro
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8<<20)
 	var runErr error
+	diagnostics := make([]string, 0, 8)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -627,16 +628,33 @@ func (s *Service) runner(ctx context.Context, count int, proxyNodeID uint64, pro
 		}
 		var event RunnerEvent
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			if len(diagnostics) < 20 {
+				diagnostics = append(diagnostics, line)
+			}
 			continue
 		}
 		if err := s.handleEvent(ctx, event); err != nil {
 			runErr = err
 		}
 	}
+	if scanErr := scanner.Err(); scanErr != nil && runErr == nil {
+		runErr = scanErr
+	}
 	if err := cmd.Wait(); err != nil && runErr == nil {
-		runErr = err
+		runErr = formatRunnerFailure(err, diagnostics)
 	}
 	return runErr
+}
+
+func formatRunnerFailure(err error, diagnostics []string) error {
+	if err == nil {
+		return nil
+	}
+	message := strings.TrimSpace(strings.Join(diagnostics, "\n"))
+	if message == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, message)
 }
 
 func (s *Service) handleEvent(ctx context.Context, event RunnerEvent) error {

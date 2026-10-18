@@ -24,7 +24,7 @@ export function diagnoseRegistrationFailure(entries: string[]): RegistrationFail
   if (includesAny(text, ["收件箱始终为空", "验证码邮件超时", "mailbox polling timed out"])) return "mail_not_sent";
   if (includesAny(text, ["转 build 失败", "转换 build", "convert to build"])) return "conversion";
   if (includesAny(text, ["timeout", "timed out", "超时"])) return "timeout";
-  if (includesAny(text, ["browsertype.launch", "target page, context or browser has been closed", "browser has been closed"])) return "browser";
+  if (includesAny(text, ["browsertype.launch", "target page, context or browser has been closed", "browser has been closed", "xauth command not found", "xvfb-run"])) return "browser";
   if (includesAny(text, ["error:", "失败", "failed"])) return "unknown";
   return "none";
 }
