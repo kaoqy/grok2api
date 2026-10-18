@@ -548,7 +548,7 @@ def fill_code(page: Page, code: str) -> None:
     page.keyboard.press("Enter")
 
 
-def fill_profile(page: Page, profile: dict[str, str]) -> None:
+def fill_profile_fields(page: Page, profile: dict[str, str]) -> None:
     given = page.locator("input[name=givenName], input[autocomplete=given-name]").first
     given.wait_for(state="visible", timeout=60000)
     given.fill(profile["given"])
@@ -558,10 +558,14 @@ def fill_profile(page: Page, profile: dict[str, str]) -> None:
     password = page.locator("input[name=password], input[type=password]").first
     if password.count():
         password.fill(random_password())
+
+
+def submit_profile(page: Page) -> None:
     for selector in [
         "button[type=submit]",
-        "button:has-text('完成注册')",
+        "button:has-text('Complete sign up')",
         "button:has-text('Create account')",
+        "button:has-text('完成注册')",
         "button:has-text('Continue')",
         "button:has-text('继续')",
     ]:
@@ -570,6 +574,11 @@ def fill_profile(page: Page, profile: dict[str, str]) -> None:
             button.click()
             return
     raise RuntimeError("未找到资料提交按钮")
+
+
+def fill_profile(page: Page, profile: dict[str, str]) -> None:
+    fill_profile_fields(page, profile)
+    submit_profile(page)
 
 
 def wait_for_profile_page(page: Page, timeout: int = 90) -> None:
@@ -583,8 +592,16 @@ def wait_for_profile_page(page: Page, timeout: int = 90) -> None:
     raise RuntimeError("资料页未出现")
 
 
+def turnstile_checkbox_point(box: dict[str, float]) -> tuple[float, float]:
+    return (
+        float(box["x"]) + 32.0,
+        float(box["y"]) + float(box["height"]) / 2.0,
+    )
+
+
 def wait_for_turnstile(page: Page, timeout: int = 150) -> None:
     deadline = time.time() + timeout
+    last_click = 0.0
     while time.time() < deadline:
         token = page.evaluate(
             """() => {
@@ -599,6 +616,25 @@ def wait_for_turnstile(page: Page, timeout: int = 150) -> None:
         if token:
             emit("progress", f"人机验证通过 token长度={len(token)}")
             return
+        now = time.time()
+        if now - last_click >= 12:
+            last_click = now
+            box = page.evaluate(
+                """() => {
+                    const input = document.querySelector('input[name="cf-turnstile-response"]');
+                    const widget = document.querySelector('iframe[src*="challenges.cloudflare.com"]')
+                        || document.querySelector('div.cf-turnstile, [data-sitekey]')
+                        || (input && input.parentElement);
+                    if (!widget) return null;
+                    const rect = widget.getBoundingClientRect();
+                    if (rect.width <= 0 || rect.height <= 0) return null;
+                    return {x: rect.x, y: rect.y, width: rect.width, height: rect.height};
+                }"""
+            )
+            if box:
+                x, y = turnstile_checkbox_point(box)
+                page.mouse.click(x, y)
+                emit("progress", "已点击 Cloudflare「Verify you are human」复选框")
         page.wait_for_timeout(2000)
     raise RuntimeError("Turnstile 验证超时")
 
@@ -811,9 +847,10 @@ def run_one(payload: dict[str, Any], attempt: int = 1) -> dict[str, str]:
             except Exception:
                 pass
         wait_for_profile_page(page)
-        wait_for_turnstile(page)
         profile = random_profile()
-        fill_profile(page, profile)
+        fill_profile_fields(page, profile)
+        wait_for_turnstile(page)
+        submit_profile(page)
         emit("progress", f"已提交资料 {profile['name']}", email=address)
         sso = read_sso(context, page)
         emit("account", "注册成功", email=address, sso=sso)
@@ -862,4 +899,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # DrissionPage drives the real headed Chromium and passes the post-email
+    # Turnstile challenge that Playwright's automation fingerprint triggers.
+    from drission_runner import main as drission_main
+
+    raise SystemExit(drission_main())

@@ -61,7 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libpango-1.0-0 libcairo2 && \
     rm -rf /var/lib/apt/lists/* && \
     python3 -m venv /opt/registration-venv && \
-    /opt/registration-venv/bin/pip install --no-cache-dir playwright && \
+    /opt/registration-venv/bin/pip install --no-cache-dir playwright "DrissionPage>=4.1.1.2,<4.2" && \
     groupadd -g 10001 grok2api && \
     useradd -u 10001 -g grok2api -d /home/grok2api -m -s /usr/sbin/nologin grok2api && \
     mkdir -p /app/data /run/grok2api /var/lib/grok2api-quality-guard \

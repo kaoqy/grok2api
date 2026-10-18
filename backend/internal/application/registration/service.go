@@ -162,6 +162,13 @@ type Settings struct {
 	MailReady bool `json:"mailReady"`
 }
 
+// registrationHeadlessMode is intentionally fixed to false. xAI blocks
+// headless Chromium during signup, so every job must use headed Chromium
+// through Xvfb even if an older config or persisted setting says otherwise.
+func registrationHeadlessMode() bool {
+	return false
+}
+
 func (s *Service) Settings() Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -173,7 +180,7 @@ func (s *Service) settingsLocked() Settings {
 		Enabled:     s.cfg.Enabled,
 		AutoEnabled: s.cfg.AutoEnabled,
 		DailyTarget: s.cfg.DailyTarget,
-		Headless:    s.cfg.Headless,
+		Headless:    registrationHeadlessMode(),
 		MailBase:    s.cfg.CloudmailBase,
 		MailToken:   s.cfg.CloudmailToken,
 		MailPath:    s.cfg.CloudmailPath,
@@ -209,7 +216,7 @@ func (s *Service) UpdateSettings(settings Settings) error {
 	s.cfg.Enabled = settings.Enabled
 	s.cfg.AutoEnabled = settings.AutoEnabled
 	s.cfg.DailyTarget = settings.DailyTarget
-	s.cfg.Headless = settings.Headless
+	s.cfg.Headless = registrationHeadlessMode()
 	s.cfg.CloudmailBase = mailBase
 	s.cfg.CloudmailToken = mailToken
 	s.cfg.CloudmailPath = mailPath
@@ -239,6 +246,7 @@ func NewService(cfg Config, accounts AccountImporter, egress EgressBinder, logge
 	Info(string, ...any)
 	Warn(string, ...any)
 }) *Service {
+	cfg.Headless = registrationHeadlessMode()
 	service := &Service{
 		cfg: cfg, accounts: accounts, egress: egress, logger: logger,
 		stopAuto: make(chan struct{}), store: newSettingsStore(cfg.StorePath),
@@ -250,9 +258,7 @@ func NewService(cfg Config, accounts AccountImporter, egress EgressBinder, logge
 		if persisted.Enabled != nil {
 			service.cfg.Enabled = *persisted.Enabled
 		}
-		if persisted.Headless != nil {
-			service.cfg.Headless = *persisted.Headless
-		}
+		service.cfg.Headless = registrationHeadlessMode()
 		service.cfg.AutoEnabled = persisted.AutoEnabled
 		service.cfg.DailyTarget = persisted.DailyTarget
 		service.cfg.CloudmailBase = persisted.MailBase
@@ -580,7 +586,7 @@ func (s *Service) runner(ctx context.Context, count int, proxyNodeID uint64, pro
 		"count":          count,
 		"proxy":          bridge.URL(),
 		"proxyNodeId":    proxyNodeID,
-		"headless":       cfg.Headless,
+		"headless":       registrationHeadlessMode(),
 		"chromiumPath":   cfg.ChromiumPath,
 		"provider":       "cloudflare",
 		"apiBase":        cfg.CloudmailBase,
@@ -600,7 +606,7 @@ func (s *Service) runner(ctx context.Context, count int, proxyNodeID uint64, pro
 	// 这比 headless 更不容易被 Turnstile 判定为机器人。
 	command := python
 	args := []string{runnerPath}
-	if !cfg.Headless {
+	if !registrationHeadlessMode() {
 		if xvfb, err := exec.LookPath("xvfb-run"); err == nil {
 			command = xvfb
 			args = []string{"-a", python, runnerPath}

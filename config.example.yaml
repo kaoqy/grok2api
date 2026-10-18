@@ -181,7 +181,7 @@ qualityGuard:
     encryptedBytesPerReasoningToken: 4
 
 registration:
-  # [按需启用] 启用内嵌浏览器注册。Docker 镜像已包含 Playwright + Chromium + Xvfb。
+  # [按需启用] 启用内嵌浏览器注册。Docker 镜像已包含 DrissionPage + Chromium + Xvfb。
   enabled: false
   # [按需修改] 开启后按随机时间自动完成单日注册目标。
   autoEnabled: false
@@ -189,7 +189,7 @@ registration:
   dailyTarget: 10
   # [按需修改] Python 解释器路径；镜像内使用 python3。
   pythonPath: "/opt/registration-venv/bin/python"
-  # [按需修改] Playwright 注册 runner 路径。
+  # [按需修改] DrissionPage 注册 runner 路径。
   runnerPath: "/app/registration/runner.py"
   # [按需修改] runner 工作目录。
   workDir: "/app"
@@ -203,8 +203,7 @@ registration:
   messagesPath: "/api/mails"
   # 收信域名，多个用英文逗号分隔。
   defaultDomains: ""
-  # [按需修改] false 会用 Xvfb 跑有头浏览器，Turnstile 通过率明显更高；
-  # true 更省资源，但更容易被判定为机器人。
+  # 保留该字段兼容旧配置；服务端会强制使用 false，通过 Xvfb 跑有头浏览器。
   headless: false
   # [按需修改] 容器内 Chromium/Chrome 可执行文件路径；留空自动探测。
   chromiumPath: "/usr/bin/chromium"

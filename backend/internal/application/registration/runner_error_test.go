@@ -41,4 +41,13 @@ func TestDockerfileInstallsXAUTHForXVFBRun(t *testing.T) {
 	if !strings.Contains(string(data), "xauth") {
 		t.Fatal("Dockerfile must install xauth because xvfb-run exits with status 3 without it")
 	}
+	if !strings.Contains(string(data), "DrissionPage") {
+		t.Fatal("Dockerfile must install DrissionPage for the headed registration runner")
+	}
+}
+
+func TestRegistrationBrowserModeIsForcedToHeaded(t *testing.T) {
+	if registrationHeadlessMode() {
+		t.Fatal("registration must always use headed Chromium through Xvfb")
+	}
 }

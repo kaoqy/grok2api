@@ -13,7 +13,6 @@ import { Switch } from "@/components/ui/switch";
 import { getRegistrationLogs, getRegistrationSettings, getRegistrationStatus, startRegistration, stopRegistration, updateRegistrationSettings } from "@/features/registration/registration-api";
 import type { RegistrationSettings } from "@/features/registration/registration-api";
 import { diagnoseRegistrationFailure, type RegistrationFailureKind } from "@/features/registration/registration-diagnostics";
-import { headedBrowserEnabled, headlessFromHeadedToggle } from "@/features/registration/registration-mode";
 import { chooseRegistrationProxy } from "@/features/registration/registration-proxy";
 import { listAllEgressNodes } from "@/features/settings/settings-api";
 import { PageHeader } from "@/shared/components/page-header";
@@ -84,16 +83,6 @@ export function RegistrationPage() {
           <div className="min-w-0 space-y-1">
             <p className="text-xs font-medium text-foreground">{t("registration.moduleDisabledTitle")}</p>
             <p className="text-xs leading-5 text-muted-foreground">{t("registration.moduleDisabledDescription")}</p>
-          </div>
-        </div>
-      ) : null}
-
-      {settings?.headless ? (
-        <div className="flex items-start gap-3 rounded-[12px] border border-destructive/30 bg-[color-mix(in_oklab,var(--destructive)_6%,var(--card))] px-4 py-3">
-          <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div className="min-w-0 space-y-1">
-            <p className="text-xs font-medium text-foreground">{t("registration.headlessRequiredTitle")}</p>
-            <p className="text-xs leading-5 text-muted-foreground">{t("registration.headlessRequired")}</p>
           </div>
         </div>
       ) : null}
@@ -308,7 +297,6 @@ function RegistrationSettingsPanel({
   const [enabled, setEnabled] = useState(initial.enabled);
   const [autoEnabled, setAutoEnabled] = useState(initial.autoEnabled);
   const [dailyTarget, setDailyTarget] = useState(initial.dailyTarget || 10);
-  const [headless, setHeadless] = useState(initial.headless);
   const [mailBase, setMailBase] = useState(initial.mailBase);
   const [mailToken, setMailToken] = useState(initial.mailToken);
   const [mailPath, setMailPath] = useState(initial.mailPath);
@@ -318,7 +306,7 @@ function RegistrationSettingsPanel({
       enabled,
       autoEnabled,
       dailyTarget,
-      headless,
+      headless: false,
       mailBase: mailBase.trim(),
       mailToken: mailToken.trim(),
       mailPath: mailPath.trim(),
@@ -360,15 +348,13 @@ function RegistrationSettingsPanel({
         onChange={setAutoEnabled}
       />
 
-      <ToggleRow
-        id="registration-headless"
-        title={t("registration.headlessTitle")}
-        description={t("registration.headlessDescription")}
-        checked={headedBrowserEnabled(headless)}
-        disabled={disabled}
-        onChange={(headed) => setHeadless(headlessFromHeadedToggle(headed))}
-      />
-      {headless ? <p className="text-xs leading-5 text-destructive">{t("registration.headlessRequired")}</p> : null}
+      <div className="flex items-start gap-2 rounded-lg border border-success/25 bg-success/5 px-3 py-2.5">
+        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" />
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-foreground">{t("registration.headlessTitle")}</p>
+          <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground">{t("registration.headlessForced")}</p>
+        </div>
+      </div>
 
       <div className="space-y-2">
         <Label htmlFor="registration-daily-target">{t("registration.dailyTarget")}</Label>

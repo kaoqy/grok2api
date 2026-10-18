@@ -28,7 +28,7 @@ because the newest models are served exclusively through Build.
 
 | Capability | Description |
 | --- | --- |
-| Automatic registration | Playwright with Chromium through Xvfb in headed mode; drives the signup page, captcha and bot checks automatically |
+| Automatic registration | DrissionPage with Chromium through Xvfb in enforced headed mode; handles signup, Turnstile, email verification and Build authorization |
 | Automatic Build activation | Right after registration, the same browser session completes the Device authorization and produces a Build account |
 | Per-account proxy binding | Choose a proxy node before registering; every later request from that account leaves through that exact egress |
 | Scheduled registration | Set a daily target and the system spreads the work across randomized times of day |
@@ -199,7 +199,7 @@ Anthropic-compatible endpoints and the Responses API are also available; see the
 
 - Backend: Go 1.26, Gin, GORM, SQLite / PostgreSQL
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui
-- Automation: Python 3, Playwright, Chromium
+- Automation: Python 3, DrissionPage, Chromium, Xvfb
 - Deployment: Docker (multi-arch images), GitHub Actions auto build
 
 ## Project layout
@@ -208,7 +208,7 @@ Anthropic-compatible endpoints and the Responses API are also available; see the
 .
 ├── backend/            Go backend (gateway, account pool, audit, registration scheduler)
 ├── frontend/           Chinese admin console
-├── registration/       Playwright virtual-display registration runner
+├── registration/       DrissionPage headed registration runner
 ├── scripts/            install / update / uninstall scripts
 ├── docker/             container entrypoint
 └── tools/              optional sidecars (egress quality guard)

@@ -25,7 +25,7 @@
 
 | 能力 | 说明 |
 | --- | --- |
-| 自动注册 | 容器内置 Playwright + Chromium，通过 Xvfb 运行有头浏览器，自动完成注册页交互、验证码与人机验证 |
+| 自动注册 | 容器内置 DrissionPage + Chromium，强制通过 Xvfb 运行有头浏览器，自动完成注册、Turnstile、验证码与 Build 授权 |
 | 自动开通 Build | 注册完成后，在同一浏览器会话内自动完成 Device 授权，直接产出 Build 账号 |
 | 账号级代理绑定 | 注册前先选代理节点，开出来的账号后续请求固定走这个出口 |
 | 定时注册 | 设置单日目标量，系统在一天内随机时间分次完成 |
@@ -197,7 +197,7 @@ curl http://127.0.0.1:28080/v1/chat/completions \
 
 - 后端：Go 1.26、Gin、GORM、SQLite / PostgreSQL
 - 前端：React 19、TypeScript、Vite、Tailwind CSS、shadcn/ui
-- 自动化：Python 3、Playwright、Chromium
+- 自动化：Python 3、DrissionPage、Chromium、Xvfb
 - 部署：Docker（多架构镜像）、GitHub Actions 自动构建
 
 ## 项目结构
@@ -206,7 +206,7 @@ curl http://127.0.0.1:28080/v1/chat/completions \
 .
 ├── backend/            Go 后端（网关、账号池、审计、注册调度）
 ├── frontend/           中文管理后台
-├── registration/       Playwright 虚拟显示注册执行器
+├── registration/       DrissionPage 有头注册执行器
 ├── scripts/            安装 / 更新 / 卸载脚本
 ├── docker/             容器入口脚本
 └── tools/              可选 sidecar（出口质量守护）
@@ -257,7 +257,7 @@ bash scripts/install.sh
 | 上游项目 | 用途 |
 | --- | --- |
 | [chenyme/grok2api](https://github.com/chenyme/grok2api) | 网关核心：Provider 抽象、账号调度、额度管理、请求审计、管理 API 与前端框架 |
-| [AaronL725/grok-register](https://github.com/AaronL725/grok-register) | 注册流程：Playwright 驱动、临时邮箱取码、Build 授权转换 |
+| [AaronL725/grok-register](https://github.com/AaronL725/grok-register) | 注册流程：DrissionPage 驱动、临时邮箱取码、Build 授权转换 |
 | [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub) | 管理端 UI：配色令牌、布局结构、卡片与表格视觉语言 |
 
 三个项目均采用 MIT 许可。在此基础上，本项目重构为 **Build 单通道 + 自动注册 + 后台可配置** 的形态。
