@@ -1,5 +1,24 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Box, Eye, Image, KeyRound, Languages, LayoutDashboard, LogOut, Menu, MessageSquareText, Monitor, Moon, MoreHorizontal, Settings, Sun, Users } from "lucide-react";
+import {
+  Box,
+  Cable,
+  ChevronRight,
+  Eye,
+  Image,
+  KeyRound,
+  Languages,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  MessageSquareText,
+  Monitor,
+  Moon,
+  MoreHorizontal,
+  Settings,
+  Sun,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
@@ -14,21 +33,35 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { CurrentVersionLabel } from "@/features/system/version-update";
 import { useAuth } from "@/shared/auth/use-auth";
 import { GitHubMark } from "@/shared/components/github-mark";
-import { SiteFooter } from "@/shared/components/site-footer";
 import { cn } from "@/shared/lib/cn";
-import { CurrentVersionLabel } from "@/features/system/version-update";
 
-const navigation = [
-  { href: "/dashboard", label: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/accounts", label: "nav.accounts", icon: Users },
-  { href: "/playground", label: "nav.creativeConsole", icon: MessageSquareText },
-  { href: "/request-audits", label: "nav.audits", icon: Eye },
-  { href: "/client-keys", label: "nav.clientKeys", icon: KeyRound },
-  { href: "/models", label: "nav.models", icon: Box },
-  { href: "/gallery", label: "nav.gallery", icon: Image },
-] as const;
+type NavigationItem = { href: string; label: string; icon: LucideIcon };
+
+const navigationSections: Array<{ label: "workspace" | "operations"; items: NavigationItem[] }> = [
+  {
+    label: "workspace",
+    items: [
+      { href: "/dashboard", label: "nav.dashboard", icon: LayoutDashboard },
+      { href: "/accounts", label: "nav.accounts", icon: Users },
+      { href: "/account-import", label: "nav.accountImport", icon: Cable },
+      { href: "/playground", label: "nav.creativeConsole", icon: MessageSquareText },
+      { href: "/gallery", label: "nav.gallery", icon: Image },
+    ],
+  },
+  {
+    label: "operations",
+    items: [
+      { href: "/request-audits", label: "nav.audits", icon: Eye },
+      { href: "/client-keys", label: "nav.clientKeys", icon: KeyRound },
+      { href: "/models", label: "nav.models", icon: Box },
+    ],
+  },
+];
+
+const navigation = navigationSections.flatMap((section) => section.items);
 
 export function AppShell() {
   const { t, i18n } = useTranslation();
@@ -38,6 +71,7 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const isMediaWorkspace = ["/playground", "/gallery"].includes(location.pathname);
+  const current = navigation.find((item) => location.pathname === item.href || location.pathname.startsWith(`${item.href}/`));
   const settingsActive = location.pathname.startsWith("/settings");
 
   const passwordSchema = z.object({
@@ -62,33 +96,62 @@ export function AppShell() {
     }
   }
 
-  // 顶栏标签采用 WorkBuddy 的胶囊分段导航：整组落在次级暖色底上，
-  // 当前项用白底、细描边和浅阴影浮起。
   function navigationLinks(mobile = false): ReactNode {
-    return navigation.map(({ href, label, icon: Icon }) => (
-      <NavLink
-        key={href}
-        to={href}
-        onClick={() => setMobileOpen(false)}
-        className={({ isActive }) =>
-          cn(
-            "inline-flex shrink-0 items-center gap-1.5 border border-transparent font-medium text-muted-foreground transition-[background-color,border-color,color,box-shadow] hover:bg-card/70 hover:text-foreground",
-            mobile ? "h-9 w-full rounded-md px-3 text-sm" : "h-8 rounded-[7px] px-3 text-[12px]",
-            isActive && "border-border bg-card font-semibold text-foreground shadow-[var(--shadow-panel)]",
-          )
-        }
-      >
-        <Icon className="size-3.5 shrink-0" strokeWidth={1.9} />
-        <span className="truncate">{t(label)}</span>
-      </NavLink>
+    return navigationSections.map((section) => (
+      <div key={section.label} className={mobile ? "space-y-1" : "space-y-1"}>
+        <p className="px-2 pb-1 text-[10px] font-semibold tracking-[0.08em] text-sidebar-foreground/45">
+          {t(section.label === "workspace" ? "shell.workspace" : "shell.operations")}
+        </p>
+        {section.items.map(({ href, label, icon: Icon }) => (
+          <NavLink
+            key={href}
+            to={href}
+            onClick={() => setMobileOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                "group flex min-w-0 items-center gap-2.5 rounded-md border border-transparent font-medium text-sidebar-foreground/72 transition-[background-color,border-color,color]",
+                mobile ? "h-10 px-3 text-sm" : "h-9 px-2.5 text-[13px]",
+                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                isActive && "border-white/8 bg-sidebar-accent text-sidebar-accent-foreground",
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md transition-colors", isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "bg-white/[0.035] text-sidebar-foreground/72 group-hover:text-sidebar-accent-foreground")}>
+                  <Icon className="size-3.5" strokeWidth={1.9} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{t(label)}</span>
+                {isActive ? <ChevronRight className="size-3 text-sidebar-primary" /> : null}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </div>
     ));
   }
+
+  const brand = (
+    <Link to="/dashboard" className="flex min-w-0 items-center gap-3" onClick={() => setMobileOpen(false)}>
+      <span className="relative flex size-9 shrink-0 items-center justify-center rounded-md border border-white/12 bg-white/[0.06] text-sidebar-primary">
+        <span className="font-mono text-[13px] font-bold">G2</span>
+        <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-sidebar bg-success" />
+      </span>
+      <span className="min-w-0">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-sidebar-accent-foreground">{t("appName")}</span>
+          <CurrentVersionLabel />
+        </span>
+        <span className="block truncate text-[10px] tracking-[0.04em] text-sidebar-foreground/45">Build control plane</span>
+      </span>
+    </Link>
+  );
 
   const accountMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 gap-2 px-2 text-xs font-medium" aria-label={t("common.actions")}>
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/12 text-[11px] font-semibold text-primary">
+        <Button variant="ghost" size="sm" className="h-9 gap-2 px-1.5 text-xs font-medium lg:px-2" aria-label={t("common.actions")}>
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-[11px] font-semibold text-primary">
             {(admin?.username ?? "?").slice(0, 1).toUpperCase()}
           </span>
           <span className="hidden max-w-[10rem] truncate sm:inline">{admin?.username}</span>
@@ -118,87 +181,102 @@ export function AppShell() {
     </DropdownMenu>
   );
 
-  const brand = (
-    <Link to="/dashboard" className="flex min-w-0 shrink-0 items-center gap-2.5">
-      <span className="relative flex size-2.5 shrink-0 items-center justify-center">
-        <span className="absolute inset-0 rounded-full bg-success/20" />
-        <span className="relative size-1.5 rounded-full bg-success" />
-      </span>
-      <span className="truncate text-[17px] font-bold tracking-normal text-foreground">{t("appName")}</span>
-      <CurrentVersionLabel />
-    </Link>
-  );
-
-  const desktopHeader = (
-    <header className="sticky top-0 z-40 hidden border-b bg-[color-mix(in_oklab,var(--background)_92%,transparent)] shadow-[var(--shadow-panel)] backdrop-blur-[10px] lg:block">
-      <div className="mx-auto flex min-h-16 max-w-[2000px] items-center gap-4 px-[clamp(14px,1.4vw,28px)] py-3">
-        {brand}
-        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-[10px] border border-border bg-secondary p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t("shell.navigation")}>
-          {navigationLinks()}
-        </nav>
-        <div className="flex shrink-0 items-center gap-2">
-          {accountMenu}
-          <Button variant="ghost" size="icon" className="size-[34px] border border-border bg-card text-muted-foreground shadow-[var(--shadow-panel)] hover:border-input hover:bg-secondary" asChild>
-            <a href="https://github.com/kaoqy/grok2api" target="_blank" rel="noreferrer" aria-label="GitHub">
-              <GitHubMark />
-            </a>
-          </Button>
-          <NavLink
-            to="/settings"
-            className={cn(
-              "flex size-[34px] shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground shadow-[var(--shadow-panel)] transition-colors hover:border-input hover:bg-secondary hover:text-foreground",
-              settingsActive && "border-primary/45 bg-accent text-accent-foreground",
-            )}
-            aria-label={t("nav.settings")}
-          >
-            <Settings className="size-4" strokeWidth={1.9} />
-          </NavLink>
-        </div>
-      </div>
-    </header>
-  );
-
   return (
     <div className="min-h-screen bg-background">
-      {desktopHeader}
+      <aside className="fixed inset-y-0 left-0 z-50 hidden w-[244px] flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+        <div className="border-b border-sidebar-border px-4 py-4">{brand}</div>
+        <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4" aria-label={t("shell.navigation")}>
+          {navigationLinks()}
+        </nav>
+        <div className="border-t border-sidebar-border p-3">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => cn(
+              "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              (isActive || settingsActive) && "bg-sidebar-accent text-sidebar-accent-foreground",
+            )}
+          >
+            <span className="flex size-6 items-center justify-center rounded-md bg-white/[0.035]"><Settings className="size-3.5" /></span>
+            {t("nav.settings")}
+          </NavLink>
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-white/8 bg-white/[0.025] p-1.5">
+            <div className="flex min-w-0 items-center gap-2 px-1">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-[11px] font-semibold text-sidebar-primary-foreground">{(admin?.username ?? "?").slice(0, 1).toUpperCase()}</span>
+              <span className="min-w-0 truncate text-xs text-sidebar-accent-foreground">{admin?.username}</span>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7 text-sidebar-foreground/60 hover:bg-white/8 hover:text-white"><MoreHorizontal /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5">
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="h-8"><Sun />{t("shell.appearance")}</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={() => setTheme("light")}><Sun />{t("shell.light")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("dark")}><Moon />{t("shell.dark")}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("system")}><Monitor />{t("shell.system")}</DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="h-8"><Languages />{t("shell.language")}</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={() => void i18n.changeLanguage("zh-CN")}>简体中文</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void i18n.changeLanguage("en")}>English</DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuItem className="h-8" onClick={() => setPasswordOpen(true)}><KeyRound />{t("auth.changePassword")}</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="h-8" onClick={() => void logout()}><LogOut />{t("auth.signOut")}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </aside>
 
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b bg-[color-mix(in_oklab,var(--background)_92%,transparent)] px-4 shadow-[var(--shadow-panel)] backdrop-blur-[10px] lg:hidden">
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8" aria-label={t("shell.openNavigation")}><Menu className="size-4" /></Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="flex h-dvh max-h-dvh w-[280px] flex-col gap-0 overflow-hidden px-0 py-0 [&>button]:right-3 [&>button]:top-4 [&>button]:flex [&>button]:size-7 [&>button]:items-center [&>button]:justify-center">
-            <SheetHeader className="shrink-0 border-b px-4 py-4 text-left">
-              {brand}
-              <SheetTitle className="sr-only">{t("appName")}</SheetTitle>
-              <SheetDescription className="sr-only">{t("shell.navigation")}</SheetDescription>
-            </SheetHeader>
-            <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3" aria-label={t("shell.navigation")}>
-              {navigationLinks(true)}
-              <NavLink
-                to="/settings"
-                onClick={() => setMobileOpen(false)}
-                className={({ isActive }) =>
-                  cn(
-                    "mt-1 inline-flex h-9 items-center gap-2 rounded-md border-t pt-2 text-sm font-medium text-muted-foreground",
-                    isActive && "text-foreground",
-                  )
-                }
-              >
-                <Settings className="size-4 shrink-0" strokeWidth={1.9} />
-                {t("nav.settings")}
-              </NavLink>
-            </nav>
-          </SheetContent>
-        </Sheet>
-        {brand}
-        {accountMenu}
-      </header>
+      <div className="lg:pl-[244px]">
+        <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b bg-background/92 px-4 backdrop-blur-md lg:px-6">
+          <div className="flex min-w-0 items-center gap-3 lg:hidden">
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild><Button variant="ghost" size="icon" className="size-9" aria-label={t("shell.openNavigation")}><Menu /></Button></SheetTrigger>
+              <SheetContent side="left" className="flex h-dvh max-h-dvh w-[286px] flex-col gap-0 overflow-hidden border-r-sidebar-border bg-sidebar px-0 py-0 text-sidebar-foreground [&>button]:right-3 [&>button]:top-4 [&>button]:flex [&>button]:size-8 [&>button]:items-center [&>button]:justify-center [&>button]:text-sidebar-foreground">
+                <SheetHeader className="shrink-0 border-b border-sidebar-border px-4 py-4 text-left">
+                  {brand}
+                  <SheetTitle className="sr-only">{t("appName")}</SheetTitle>
+                  <SheetDescription className="sr-only">{t("shell.navigation")}</SheetDescription>
+                </SheetHeader>
+                <nav className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3" aria-label={t("shell.navigation")}>
+                  {navigationLinks(true)}
+                  <NavLink to="/settings" onClick={() => setMobileOpen(false)} className="flex h-10 items-center gap-2.5 rounded-md px-3 text-sm font-medium text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                    <span className="flex size-6 items-center justify-center rounded-md bg-white/[0.035]"><Settings className="size-3.5" /></span>{t("nav.settings")}
+                  </NavLink>
+                </nav>
+              </SheetContent>
+            </Sheet>
+            <Link to="/dashboard" className="flex min-w-0 items-center gap-2">
+              <span className="font-mono text-sm font-bold text-primary">G2</span>
+              <span className="truncate text-sm font-semibold">{t("appName")}</span>
+            </Link>
+          </div>
 
-      <main className={cn("mx-auto w-full max-w-[2000px] px-[clamp(14px,1.4vw,28px)]", isMediaWorkspace ? "pt-5 pb-0" : "py-5")}>
-        <Outlet />
-      </main>
-      {!isMediaWorkspace ? <SiteFooter /> : null}
+          <div className="hidden min-w-0 items-center gap-2 text-xs lg:flex">
+            <span className="font-medium text-muted-foreground">{t("appName")}</span>
+            <ChevronRight className="size-3 text-muted-foreground/55" />
+            <span className="truncate font-semibold text-foreground">{t(current?.label ?? (settingsActive ? "nav.settings" : "nav.dashboard"))}</span>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="mr-1 hidden items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-[10px] text-muted-foreground sm:flex">
+              <span className="size-1.5 rounded-full bg-success" />{t("shell.gatewayOnline")}
+            </span>
+            {accountMenu}
+            <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" asChild>
+              <a href="https://github.com/kaoqy/grok2api" target="_blank" rel="noreferrer" aria-label="GitHub"><GitHubMark /></a>
+            </Button>
+          </div>
+        </header>
+
+        <main className={cn("app-canvas min-h-[calc(100vh-3.5rem)] w-full px-[clamp(14px,1.6vw,30px)]", isMediaWorkspace ? "py-5" : "py-6")}>
+          <div className="mx-auto w-full max-w-[1680px]"><Outlet /></div>
+        </main>
+      </div>
 
       <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
         <DialogContent>

@@ -43,7 +43,7 @@ export function ModelsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [providerFilter, setProviderFilter] = useState<ModelRouteDTO["provider"] | "">("");
+  const [providerFilter, setProviderFilter] = useState<ModelRouteDTO["provider"] | "">("grok_build");
   const [sort, setSort] = useState<TableSort>({ field: "", order: "asc" });
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState<ModelRouteDTO | "new" | null>(null);
@@ -225,9 +225,11 @@ export function ModelsPage() {
 
   return (
     <div className="space-y-5">
-      <header className="flex min-h-8 items-center">
-        <h1 className="text-xl font-medium">{t("models.title")}</h1>
-        <p className="sr-only">{t("models.description")}</p>
+      <header className="flex min-h-8 items-end border-b pb-4">
+        <div>
+          <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.025em]">{t("models.title")}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">{t("models.description")}</p>
+        </div>
       </header>
 
       <DataTableShell

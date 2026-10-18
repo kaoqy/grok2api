@@ -13,12 +13,12 @@ type DashboardPanelProps = {
 
 export function DashboardPanel({ id, title, actions, children, className, contentClassName }: DashboardPanelProps) {
   return (
-    <section className={cn("rounded-2xl border bg-card px-5 py-[18px] shadow-panel", className)} aria-labelledby={id}>
+    <section className={cn("min-w-0 rounded-lg border bg-card px-5 py-[18px] shadow-panel", className)} aria-labelledby={id}>
       <header className="flex min-h-7 items-center justify-between gap-3">
-        <h2 id={id} className="text-[13px] font-bold uppercase tracking-[0.6px] text-muted-foreground">{title}</h2>
+        <h2 id={id} className="text-[13px] font-semibold text-foreground">{title}</h2>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </header>
-      <div className={cn("mt-4", contentClassName)}>{children}</div>
+      <div className={cn("mt-4 min-w-0", contentClassName)}>{children}</div>
     </section>
   );
 }

@@ -84,6 +84,7 @@ func TestSystemEndpointsRequireAdminAuthentication(t *testing.T) {
 		{method: http.MethodGet, path: "/api/admin/v1/system/version"},
 		{method: http.MethodPost, path: "/api/admin/v1/system/update/check"},
 		{method: http.MethodPost, path: "/api/admin/v1/account-imports/build"},
+		{method: http.MethodPost, path: "/api/import/v1/accounts/build"},
 	} {
 		request := httptest.NewRequest(route.method, route.path, nil)
 		recorder := httptest.NewRecorder()

@@ -2,15 +2,16 @@ package dashboard
 
 // Resources 表示 Dashboard 所需的资源总量与可用量。
 type Resources struct {
-	ActiveAccounts   int64
-	TotalAccounts    int64
-	BuildAccounts    int64
-	WebAccounts      int64
-	ConsoleAccounts  int64
-	EnabledModels    int64
-	TotalModels      int64
-	ActiveClientKeys int64
-	TotalClientKeys  int64
+	ActiveAccounts      int64
+	ActiveBuildAccounts int64
+	TotalAccounts       int64
+	BuildAccounts       int64
+	WebAccounts         int64
+	ConsoleAccounts     int64
+	EnabledModels       int64
+	TotalModels         int64
+	ActiveClientKeys    int64
+	TotalClientKeys     int64
 }
 
 // Usage 表示指定时间窗口内的请求聚合。

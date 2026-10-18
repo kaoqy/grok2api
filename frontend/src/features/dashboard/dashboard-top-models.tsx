@@ -18,7 +18,7 @@ const COLUMN_COUNT = 4;
 
 export function DashboardTopModels({ dashboard, locale, loading }: DashboardTopModelsProps) {
   const { t } = useTranslation();
-  const models = dashboard?.topModels ?? [];
+  const models = (dashboard?.topModels ?? []).filter((item) => item.requests > 0 || item.tokens > 0 || item.billedCostUsdTicks > 0);
 
   return (
     <DashboardPanel

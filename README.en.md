@@ -103,18 +103,22 @@ docker run -d --name grok2api \
 1. Complete administrator setup.
 2. Add or confirm the target proxy under **Settings -> Egress proxies**.
 3. Register the Grok account and complete Build Device OAuth with local tooling.
-4. Submit the resulting credentials and proxy through the import API.
-5. The service imports the account, creates or reuses the Build proxy node, and binds the account.
-6. Verify the account, quota, and egress on the **Accounts** page.
-7. Create a client key and call the inference API.
+4. Open **Account import** and create a dedicated import key.
+5. Submit the resulting credentials and proxy through the external import API.
+6. The service imports the account, creates or reuses the Build proxy node, and binds the account.
+7. Verify the account, quota, and egress on the **Accounts** page.
+8. Create a client key and call the inference API.
 
 ## Build import API
 
 ```http
-POST /api/admin/v1/account-imports/build
-Authorization: Bearer <admin-access-token>
+POST /api/import/v1/accounts/build
+Authorization: Bearer <account-import-key>
 Content-Type: application/json
 ```
+
+Create or rotate the import key on the **Account import** page. It only authorizes
+this import endpoint and cannot access the admin console or `/v1/*` inference APIs.
 
 ```json
 {

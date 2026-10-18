@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ClipboardPaste, Compass, Download, ExternalLink, FileUp, Link, MoreHorizontal, Pencil, Plus, RefreshCw, RotateCw, Search, SquareTerminal, TimerOff, Trash2, TriangleAlert, Webhook } from "lucide-react";
+import { Activity, ArrowRight, ClipboardPaste, Compass, Download, ExternalLink, FileUp, Link, MoreHorizontal, Pencil, Plus, RefreshCw, RotateCw, Search, ShieldAlert, SquareTerminal, TimerOff, Trash2, TriangleAlert, Webhook } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -1280,13 +1280,14 @@ export function AccountsPage() {
   return (
     <div className="space-y-5">
       <header className="flex min-h-8 items-center">
-        <h1 className="text-xl font-medium">{t("accounts.title")}</h1>
-        <p className="sr-only">{t("console.accountsDescription")}</p>
+        <div>
+          <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.025em]">{t("accounts.title")}</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">{t("accounts.description")}</p>
+        </div>
       </header>
       <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <AccountMetricPanel tone="text-quota-product-1" icon={<SquareTerminal />} loading={summaryLoading} label={t("accounts.buildAccountCount")} value={summaryUnavailable ? "-" : formatNumber(buildSummary.total, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(buildSummary.available, i18n.language, 0) })} />
-        <AccountMetricPanel tone="text-quota-product-2" icon={<Compass />} loading={summaryLoading} label={t("accounts.webAccountCount")} value={summaryUnavailable ? "-" : formatNumber(webSummary.total, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(webSummary.available, i18n.language, 0) })} />
-        <AccountMetricPanel tone="text-quota-product-4" icon={<Webhook />} loading={summaryLoading} label={t("accounts.consoleAccountCount")} value={summaryUnavailable ? "-" : formatNumber(consoleSummary.total, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(consoleSummary.available, i18n.language, 0) })} />
+        <AccountMetricPanel tone="text-success" icon={<Activity />} loading={summaryLoading} label={t("dashboard.activeAccounts")} value={summaryUnavailable ? "-" : formatNumber(buildSummary.available, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(buildSummary.available, i18n.language, 0) })} />
         <AccountMetricPanel
           tone={abnormalAccounts > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}
           icon={<TriangleAlert />}
@@ -1296,6 +1297,7 @@ export function AccountsPage() {
           detail={abnormalDetail}
           detailItems={abnormalDetailItems}
         />
+        <AccountMetricPanel tone={riskAccounts > 0 ? "text-quota-product-6" : "text-muted-foreground"} icon={<ShieldAlert />} loading={summaryLoading} label={t("accounts.botRisk")} value={summaryUnavailable ? "-" : formatNumber(riskAccounts, i18n.language, 0)} detail={t("accounts.riskFilter")} />
       </section>
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-2">

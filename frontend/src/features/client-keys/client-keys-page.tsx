@@ -257,9 +257,11 @@ export function ClientKeysPage() {
   }
   return (
     <div className="space-y-5">
-      <header className="flex min-h-8 items-center">
-        <h1 className="text-xl font-medium">{t("keys.title")}</h1>
-        <p className="sr-only">{t("keys.description")}</p>
+      <header className="flex min-h-8 items-end border-b pb-4">
+        <div>
+          <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.025em]">{t("keys.title")}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">{t("keys.description")}</p>
+        </div>
       </header>
 
       <DataTableShell

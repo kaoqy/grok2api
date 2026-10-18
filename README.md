@@ -107,18 +107,22 @@ docker run -d --name grok2api \
 1. 打开管理后台并完成管理员初始化。
 2. 在「设置 → 出口代理」添加或确认目标代理。
 3. 在本地完成 Grok 账号注册和 Build Device OAuth。
-4. 调用管理员导入 API，把 Build OAuth 凭据与代理一起提交。
-5. 服务端导入账号，自动创建或复用 Build 代理节点，并完成账号绑定。
-6. 在「账号」页确认账号状态、额度和出口。
-7. 在「密钥」页创建客户端密钥，即可调用推理 API。
+4. 打开「账号接入」页，创建专用导入密钥。
+5. 调用外部导入 API，把 Build OAuth 凭据与代理一起提交。
+6. 服务端导入账号，自动创建或复用 Build 代理节点，并完成账号绑定。
+7. 在「账号」页确认账号状态、额度和出口。
+8. 在「密钥」页创建客户端密钥，即可调用推理 API。
 
 ## Build 账号导入 API
 
 ```http
-POST /api/admin/v1/account-imports/build
-Authorization: Bearer <管理员访问令牌>
+POST /api/import/v1/accounts/build
+Authorization: Bearer <账号导入密钥>
 Content-Type: application/json
 ```
+
+账号导入密钥在管理后台「账号接入」页面创建或轮换。它只用于这个导入端点，
+不能登录管理后台，也不能调用 `/v1/*` 推理接口。
 
 请求示例：
 

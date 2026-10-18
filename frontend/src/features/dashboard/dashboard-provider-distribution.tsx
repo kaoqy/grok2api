@@ -15,22 +15,26 @@ type DashboardProviderDistributionProps = {
   loading: boolean;
 };
 
-type ProviderKey = "grok_build" | "grok_web" | "grok_console";
+type ProviderKey = "success" | "failed";
 
 const STRIPE_COUNT = 40;
 const PROVIDERS: Array<{ key: ProviderKey; color: string; dot: string }> = [
-  { key: "grok_build", color: "bg-quota-product-1", dot: "bg-quota-product-1" },
-  { key: "grok_web", color: "bg-quota-product-2", dot: "bg-quota-product-2" },
-  { key: "grok_console", color: "bg-quota-product-4", dot: "bg-quota-product-4" },
+  { key: "success", color: "bg-success", dot: "bg-success" },
+  { key: "failed", color: "bg-quota-product-6", dot: "bg-quota-product-6" },
 ];
 
 export function DashboardProviderDistribution({ dashboard, locale, loading }: DashboardProviderDistributionProps) {
   const { t } = useTranslation();
   const [stripeHover, setStripeHover] = useState<{ index: number; x: number; y: number } | null>(null);
-  const providers = useMemo(() => PROVIDERS.map((provider) => {
-    const usage = dashboard?.providers.find((item) => item.provider === provider.key);
-    return { ...provider, requests: usage?.requests ?? 0, successfulRequests: usage?.successfulRequests ?? 0, tokens: usage?.tokens ?? 0 };
-  }), [dashboard?.providers]);
+  const providers = useMemo(() => {
+    const build = dashboard?.providers.find((item) => item.provider === "grok_build");
+    const requests = build?.requests ?? 0;
+    const successfulRequests = build?.successfulRequests ?? 0;
+    return [
+      { ...PROVIDERS[0], requests: successfulRequests, successfulRequests, tokens: build?.tokens ?? 0 },
+      { ...PROVIDERS[1], requests: Math.max(0, requests - successfulRequests), successfulRequests: 0, tokens: 0 },
+    ];
+  }, [dashboard?.providers]);
   const totalRequests = providers.reduce((total, item) => total + item.requests, 0);
   const totalSuccessfulRequests = providers.reduce((total, item) => total + item.successfulRequests, 0);
   const averageSuccessRate = totalRequests > 0 ? totalSuccessfulRequests / totalRequests * 100 : 0;
@@ -134,9 +138,7 @@ function buildProviderStripes<T extends { requests: number }>(providers: T[], to
 }
 
 function providerLabel(provider: ProviderKey, t: TFunction): string {
-  if (provider === "grok_build") return t("models.providerGrokBuild");
-  if (provider === "grok_web") return t("models.providerGrokWeb");
-  return t("console.name");
+  return provider === "success" ? t("dashboard.successfulRequests") : t("dashboard.failedRequests");
 }
 
 function clampTooltipX(value: number): number {

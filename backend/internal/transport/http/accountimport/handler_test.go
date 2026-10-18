@@ -17,6 +17,29 @@ type fakeImportService struct {
 	err    error
 }
 
+type fakeKeyService struct {
+	configured bool
+	token      string
+	created    int
+	revoked    int
+}
+
+func (f *fakeKeyService) AccountImportKeyConfigured() bool { return f.configured }
+
+func (f *fakeKeyService) CreateAccountImportKey(context.Context) (string, error) {
+	f.created++
+	f.configured = true
+	f.token = "g2a_import_generated"
+	return f.token, nil
+}
+
+func (f *fakeKeyService) RevokeAccountImportKey(context.Context) error {
+	f.revoked++
+	f.configured = false
+	f.token = ""
+	return nil
+}
+
 func (f *fakeImportService) ImportBuild(_ context.Context, input accountimportapp.Input) (accountimportapp.Result, error) {
 	f.input = input
 	return f.result, f.err
@@ -28,7 +51,7 @@ func TestCreateBuildImportSendsCredentialsAndProxyToService(t *testing.T) {
 		Created: 1, AccountID: 77, AccountIDs: []uint64{77}, EgressNodeID: 41,
 		EgressNodeName: "Singapore Oracle", ProxyDisplay: "129.150.51.127:4499", ReusedEgressNode: true,
 	}}
-	handler := NewHandler(service)
+	handler := NewHandler(service, &fakeKeyService{})
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/admin/v1/account-imports/build", strings.NewReader(`{
@@ -70,7 +93,7 @@ func TestCreateBuildImportSendsCredentialsAndProxyToService(t *testing.T) {
 
 func TestCreateBuildImportRejectsMalformedJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := NewHandler(&fakeImportService{})
+	handler := NewHandler(&fakeImportService{}, &fakeKeyService{})
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/admin/v1/account-imports/build", strings.NewReader(`{"email":`))
@@ -80,5 +103,31 @@ func TestCreateBuildImportRejectsMalformedJSON(t *testing.T) {
 
 	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"code":"invalidBuildImport"`) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestAccountImportKeyEndpointsCreateAndRevokeToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	keys := &fakeKeyService{}
+	handler := NewHandler(&fakeImportService{}, keys)
+	router := gin.New()
+	handler.Register(router.Group("/api/admin/v1"))
+
+	statusRecorder := httptest.NewRecorder()
+	router.ServeHTTP(statusRecorder, httptest.NewRequest(http.MethodGet, "/api/admin/v1/account-imports/key", nil))
+	if statusRecorder.Code != http.StatusOK || !strings.Contains(statusRecorder.Body.String(), `"configured":false`) {
+		t.Fatalf("status = %d, body = %s", statusRecorder.Code, statusRecorder.Body.String())
+	}
+
+	createRecorder := httptest.NewRecorder()
+	router.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, "/api/admin/v1/account-imports/key", nil))
+	if createRecorder.Code != http.StatusCreated || !strings.Contains(createRecorder.Body.String(), `"token":"g2a_import_generated"`) || keys.created != 1 {
+		t.Fatalf("status = %d, body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+
+	deleteRecorder := httptest.NewRecorder()
+	router.ServeHTTP(deleteRecorder, httptest.NewRequest(http.MethodDelete, "/api/admin/v1/account-imports/key", nil))
+	if deleteRecorder.Code != http.StatusOK || !strings.Contains(deleteRecorder.Body.String(), `"configured":false`) || keys.revoked != 1 {
+		t.Fatalf("status = %d, body = %s", deleteRecorder.Code, deleteRecorder.Body.String())
 	}
 }

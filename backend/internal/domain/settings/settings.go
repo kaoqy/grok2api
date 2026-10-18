@@ -30,17 +30,18 @@ func NormalizeWebFreeVideoDurationCap(value int) int {
 
 // Config 表示可跨重启持久化并支持热加载的网关运行参数。
 type Config struct {
-	Server            ServerConfig
-	ProviderBuild     ProviderBuildConfig
-	ProviderWeb       ProviderWebConfig
-	ProviderConsole   ProviderConsoleConfig
-	Batch             BatchConfig
-	Media             MediaConfig
-	Frontend          FrontendConfig
-	Routing           RoutingConfig
-	Audit             AuditConfig
-	ClientKeyDefaults ClientKeyDefaultsConfig
-	Accounts          AccountsConfig
+	AccountImportKeyHash string
+	Server               ServerConfig
+	ProviderBuild        ProviderBuildConfig
+	ProviderWeb          ProviderWebConfig
+	ProviderConsole      ProviderConsoleConfig
+	Batch                BatchConfig
+	Media                MediaConfig
+	Frontend             FrontendConfig
+	Routing              RoutingConfig
+	Audit                AuditConfig
+	ClientKeyDefaults    ClientKeyDefaultsConfig
+	Accounts             AccountsConfig
 }
 
 // ServerConfig 定义可热更新的推理入口容量参数。

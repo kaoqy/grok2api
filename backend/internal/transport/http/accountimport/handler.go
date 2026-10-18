@@ -15,8 +15,15 @@ type importService interface {
 	ImportBuild(context.Context, accountimportapp.Input) (accountimportapp.Result, error)
 }
 
+type importKeyService interface {
+	AccountImportKeyConfigured() bool
+	CreateAccountImportKey(context.Context) (string, error)
+	RevokeAccountImportKey(context.Context) error
+}
+
 type Handler struct {
 	service importService
+	keys    importKeyService
 }
 
 type createBuildRequest struct {
@@ -44,12 +51,19 @@ type createBuildResponse struct {
 	ReusedEgressNode bool     `json:"reusedEgressNode"`
 }
 
-func NewHandler(service importService) *Handler {
-	return &Handler{service: service}
+func NewHandler(service importService, keys importKeyService) *Handler {
+	return &Handler{service: service, keys: keys}
 }
 
 func (h *Handler) Register(router *gin.RouterGroup) {
 	router.POST("/account-imports/build", h.createBuild)
+	router.GET("/account-imports/key", h.importKeyStatus)
+	router.POST("/account-imports/key", h.createImportKey)
+	router.DELETE("/account-imports/key", h.revokeImportKey)
+}
+
+func (h *Handler) RegisterImport(router *gin.RouterGroup) {
+	router.POST("/accounts/build", h.createBuild)
 }
 
 func (h *Handler) createBuild(c *gin.Context) {
@@ -72,6 +86,54 @@ func (h *Handler) createBuild(c *gin.Context) {
 		return
 	}
 	response.Success(c, http.StatusOK, newCreateBuildResponse(result))
+}
+
+type importKeyStatusResponse struct {
+	Configured bool   `json:"configured"`
+	Endpoint   string `json:"endpoint"`
+}
+
+func (h *Handler) importKeyStatus(c *gin.Context) {
+	if h.keys == nil {
+		response.Error(c, http.StatusServiceUnavailable, "accountImportKeyUnavailable", "账号导入密钥服务不可用")
+		return
+	}
+	response.Success(c, http.StatusOK, importKeyStatusResponse{
+		Configured: h.keys.AccountImportKeyConfigured(),
+		Endpoint:   "/api/import/v1/accounts/build",
+	})
+}
+
+func (h *Handler) createImportKey(c *gin.Context) {
+	if h.keys == nil {
+		response.Error(c, http.StatusServiceUnavailable, "accountImportKeyUnavailable", "账号导入密钥服务不可用")
+		return
+	}
+	token, err := h.keys.CreateAccountImportKey(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "accountImportKeyCreateFailed", "创建账号导入密钥失败")
+		return
+	}
+	response.Success(c, http.StatusCreated, gin.H{
+		"configured": true,
+		"token":      token,
+		"endpoint":   "/api/import/v1/accounts/build",
+	})
+}
+
+func (h *Handler) revokeImportKey(c *gin.Context) {
+	if h.keys == nil {
+		response.Error(c, http.StatusServiceUnavailable, "accountImportKeyUnavailable", "账号导入密钥服务不可用")
+		return
+	}
+	if err := h.keys.RevokeAccountImportKey(c.Request.Context()); err != nil {
+		response.Error(c, http.StatusInternalServerError, "accountImportKeyRevokeFailed", "撤销账号导入密钥失败")
+		return
+	}
+	response.Success(c, http.StatusOK, importKeyStatusResponse{
+		Configured: false,
+		Endpoint:   "/api/import/v1/accounts/build",
+	})
 }
 
 func newCreateBuildResponse(result accountimportapp.Result) createBuildResponse {

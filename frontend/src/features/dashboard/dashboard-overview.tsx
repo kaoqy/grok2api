@@ -30,13 +30,13 @@ export function DashboardOverview({ dashboard, locale, loading }: DashboardDataP
     : t(hasFirstTokenSamples ? "audits.throughputPending" : "audits.performancePending");
 
   return (
-    <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-[var(--shadow-panel)]" aria-label={t("dashboard.usage")}>
+    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-panel)]" aria-label={t("dashboard.usage")}>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4">
         <DashboardMetric
           icon={UsersRound}
-          label={t("dashboard.accountCount")}
-          value={formatNumber(resources?.totalAccounts ?? 0, locale)}
-          detail={t("dashboard.accountDistribution", { build: formatNumber(resources?.buildAccounts ?? 0, locale), web: formatNumber(resources?.webAccounts ?? 0, locale), console: formatNumber(resources?.consoleAccounts ?? 0, locale) })}
+          label={t("accounts.buildAccountCount")}
+          value={formatNumber(resources?.buildAccounts ?? 0, locale)}
+          detail={t("dashboard.availableSummary", { active: formatNumber(resources?.activeBuildAccounts ?? 0, locale), total: formatNumber(resources?.buildAccounts ?? 0, locale) })}
           loading={loading}
         />
         <DashboardMetric
@@ -77,8 +77,8 @@ export function DashboardOverview({ dashboard, locale, loading }: DashboardDataP
 export function DashboardResources({ dashboard, locale, loading }: DashboardDataProps) {
   const { t } = useTranslation();
   const resources = dashboard?.resources;
-  const activeAccounts = resources?.activeAccounts ?? 0;
-  const totalAccounts = resources?.totalAccounts ?? 0;
+  const activeAccounts = resources?.activeBuildAccounts ?? 0;
+  const totalAccounts = resources?.buildAccounts ?? 0;
   const unavailableAccounts = Math.max(0, totalAccounts - activeAccounts);
   const availability = totalAccounts > 0 ? activeAccounts / totalAccounts * 100 : 0;
   const chartConfig = {

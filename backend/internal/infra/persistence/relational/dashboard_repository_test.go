@@ -74,7 +74,7 @@ func TestDashboardRepositorySnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Resources.ActiveAccounts != 1 || snapshot.Resources.TotalAccounts != 3 || snapshot.Resources.BuildAccounts != 3 || snapshot.Resources.WebAccounts != 0 || snapshot.Resources.ConsoleAccounts != 0 || snapshot.Resources.EnabledModels != 1 || snapshot.Resources.TotalModels != 2 || snapshot.Resources.ActiveClientKeys != 1 || snapshot.Resources.TotalClientKeys != 2 {
+	if snapshot.Resources.ActiveAccounts != 1 || snapshot.Resources.ActiveBuildAccounts != 1 || snapshot.Resources.TotalAccounts != 3 || snapshot.Resources.BuildAccounts != 3 || snapshot.Resources.WebAccounts != 0 || snapshot.Resources.ConsoleAccounts != 0 || snapshot.Resources.EnabledModels != 1 || snapshot.Resources.TotalModels != 2 || snapshot.Resources.ActiveClientKeys != 1 || snapshot.Resources.TotalClientKeys != 2 {
 		t.Fatalf("resources = %#v", snapshot.Resources)
 	}
 	if snapshot.Usage.Requests != 3 || snapshot.Usage.SuccessfulRequests != 2 || snapshot.Usage.FailedRequests != 1 || snapshot.Usage.Tokens != 160 {

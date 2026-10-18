@@ -153,7 +153,8 @@ func New(deps Dependencies) *gin.Engine {
 	adminProtected.Use(middleware.AdminAuth(deps.AdminAuth))
 	authHandler.RegisterAuthenticated(adminProtected)
 	accounthttp.NewHandler(deps.Accounts, deps.AccountSync).Register(adminProtected)
-	accountimporthttp.NewHandler(deps.AccountImports).Register(adminProtected)
+	accountImportHandler := accountimporthttp.NewHandler(deps.AccountImports, deps.Settings)
+	accountImportHandler.Register(adminProtected)
 	modelhttp.NewHandler(deps.Models).Register(adminProtected)
 	clientkeyhttp.NewHandler(deps.ClientKeys).Register(adminProtected)
 	auditHandler := audithttp.NewHandler(deps.Audits)
@@ -177,6 +178,12 @@ func New(deps Dependencies) *gin.Engine {
 		audithttp.NewQualityGuardHandler(deps.Audits, deps.QualityGuardProbe.ClientKeyID).RegisterQualityGuard(qualityGuardInternal)
 		egressHandler.RegisterQualityGuard(qualityGuardInternal)
 	}
+
+	accountImportAPI := router.Group("/api/import/v1")
+	accountImportAPI.Use(middleware.AccountImportAuth(func(raw string) bool {
+		return deps.Settings != nil && deps.Settings.ValidateAccountImportKey(raw)
+	}))
+	accountImportHandler.RegisterImport(accountImportAPI)
 
 	v1 := router.Group("/v1")
 	v1.Use(deps.ConcurrencyGate.Middleware())

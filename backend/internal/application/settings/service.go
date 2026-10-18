@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	settingsdomain "github.com/chenyme/grok2api/backend/internal/domain/settings"
 	"github.com/chenyme/grok2api/backend/internal/infra/config"
+	"github.com/chenyme/grok2api/backend/internal/infra/security"
 	"github.com/chenyme/grok2api/backend/internal/repository"
 )
 
@@ -200,6 +202,82 @@ func NewService(cfg config.Config, updatedAt time.Time, revision uint64, reposit
 	return &Service{cfg: cfg, updatedAt: updatedAt, revision: revision, activeBufferSize: cfg.Audit.BufferSize, activeMediaConcurrency: cfg.Provider.Web.MediaConcurrency, repository: repository, notify: notify, apply: apply}
 }
 
+func (s *Service) AccountImportKeyConfigured() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cfg.AccountImportKeyHash != ""
+}
+
+func (s *Service) ValidateAccountImportKey(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	s.mu.RLock()
+	expected := s.cfg.AccountImportKeyHash
+	s.mu.RUnlock()
+	if expected == "" {
+		return false
+	}
+	actual := security.HashToken(raw)
+	return len(actual) == len(expected) && subtle.ConstantTimeCompare([]byte(actual), []byte(expected)) == 1
+}
+
+func (s *Service) CreateAccountImportKey(ctx context.Context) (string, error) {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+	s.mu.RLock()
+	current := s.cfg
+	currentRevision := s.revision
+	s.mu.RUnlock()
+	secret, err := security.NewOpaqueToken(32)
+	if err != nil {
+		return "", err
+	}
+	token := "g2a_import_" + secret
+	next := current
+	next.AccountImportKeyHash = security.HashToken(token)
+	if err := s.saveRuntimeConfig(ctx, next, currentRevision); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func (s *Service) RevokeAccountImportKey(ctx context.Context) error {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+	s.mu.RLock()
+	current := s.cfg
+	currentRevision := s.revision
+	s.mu.RUnlock()
+	next := current
+	next.AccountImportKeyHash = ""
+	return s.saveRuntimeConfig(ctx, next, currentRevision)
+}
+
+func (s *Service) saveRuntimeConfig(ctx context.Context, next config.Config, currentRevision uint64) error {
+	updatedAt, revision, err := s.repository.Save(ctx, toDomainConfig(next), currentRevision)
+	if err != nil {
+		if errors.Is(err, repository.ErrConflict) {
+			return ErrConflict
+		}
+		return err
+	}
+	s.mu.Lock()
+	s.cfg = next
+	s.updatedAt = updatedAt
+	s.revision = revision
+	apply := s.apply
+	s.mu.Unlock()
+	if apply != nil {
+		apply(next)
+	}
+	if s.notify != nil {
+		s.notify(ctx)
+	}
+	return nil
+}
+
 // LoadPersisted 将数据库运行设置覆盖到代码默认配置，并执行完整边界校验。
 func LoadPersisted(ctx context.Context, base config.Config, repository repository.RuntimeSettingsRepository) (config.Config, time.Time, uint64, error) {
 	value, updatedAt, revision, found, err := repository.Get(ctx)
@@ -304,6 +382,7 @@ func (s *Service) ReloadPersisted(ctx context.Context) error {
 }
 
 func applyDomainConfig(base config.Config, value settingsdomain.Config) config.Config {
+	base.AccountImportKeyHash = value.AccountImportKeyHash
 	// 旧版运行设置没有 Server 字段，反序列化后为零；升级时沿用当前配置默认值。
 	if value.Server.MaxConcurrentRequests > 0 {
 		base.Server.MaxConcurrentRequests = value.Server.MaxConcurrentRequests
@@ -446,7 +525,8 @@ func toDomainConfig(value config.Config) settingsdomain.Config {
 	randomDelay := value.Batch.RandomDelay.Value()
 	accountIsolatedConnections := value.Routing.AccountIsolatedConnections
 	return settingsdomain.Config{
-		Server: settingsdomain.ServerConfig{MaxConcurrentRequests: value.Server.MaxConcurrentRequests},
+		AccountImportKeyHash: value.AccountImportKeyHash,
+		Server:               settingsdomain.ServerConfig{MaxConcurrentRequests: value.Server.MaxConcurrentRequests},
 		ProviderBuild: settingsdomain.ProviderBuildConfig{
 			BaseURL: value.Provider.Build.BaseURL, FallbackBaseURL: config.NormalizeBuildFallbackBaseURL(value.Provider.Build.FallbackBaseURL),
 			ClientVersion: value.Provider.Build.ClientVersion, ClientIdentifier: value.Provider.Build.ClientIdentifier,

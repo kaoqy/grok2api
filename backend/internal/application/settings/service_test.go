@@ -24,6 +24,41 @@ type runtimeSettingsRepositoryStub struct {
 	getCount  int
 }
 
+func TestAccountImportKeyLifecycle(t *testing.T) {
+	cfg := testConfig(t)
+	repo := &runtimeSettingsRepositoryStub{}
+	service := NewService(cfg, time.Time{}, 0, repo, nil, nil)
+
+	first, err := service.CreateAccountImportKey(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) < len("g2a_import_")+32 || first[:len("g2a_import_")] != "g2a_import_" {
+		t.Fatalf("token = %q", first)
+	}
+	if !service.ValidateAccountImportKey(first) || service.ValidateAccountImportKey("wrong") {
+		t.Fatal("created import key did not authenticate correctly")
+	}
+	if repo.value.AccountImportKeyHash == "" || repo.value.AccountImportKeyHash == first {
+		t.Fatalf("stored hash = %q", repo.value.AccountImportKeyHash)
+	}
+
+	second, err := service.CreateAccountImportKey(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if service.ValidateAccountImportKey(first) || !service.ValidateAccountImportKey(second) {
+		t.Fatal("rotating the import key did not invalidate the old token")
+	}
+
+	if err := service.RevokeAccountImportKey(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if service.AccountImportKeyConfigured() || service.ValidateAccountImportKey(second) {
+		t.Fatal("revoked import key remained active")
+	}
+}
+
 func (r *runtimeSettingsRepositoryStub) Get(context.Context) (settingsdomain.Config, time.Time, uint64, bool, error) {
 	r.getCount++
 	return r.value, r.updatedAt, r.revision, r.found, nil

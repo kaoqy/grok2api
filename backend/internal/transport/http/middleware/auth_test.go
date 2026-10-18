@@ -65,6 +65,38 @@ func TestAdminAccessCookieRequiresSameOriginForUnsafeRequests(t *testing.T) {
 	}
 }
 
+func TestAccountImportAuthAcceptsOnlyConfiguredToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/import/v1/accounts/build", AccountImportAuth(func(raw string) bool {
+		return raw == "g2a_import_valid"
+	}), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	for _, test := range []struct {
+		name   string
+		header string
+		status int
+	}{
+		{name: "missing", status: http.StatusUnauthorized},
+		{name: "wrong", header: "Bearer wrong", status: http.StatusUnauthorized},
+		{name: "valid", header: "Bearer g2a_import_valid", status: http.StatusNoContent},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/import/v1/accounts/build", nil)
+			if test.header != "" {
+				request.Header.Set("Authorization", test.header)
+			}
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != test.status {
+				t.Fatalf("status = %d, want %d, body = %s", recorder.Code, test.status, recorder.Body.String())
+			}
+		})
+	}
+}
+
 func TestClientRuntimeStoreFailureUsesServiceUnavailable(t *testing.T) {
 	err := errors.Join(clientkeyapp.ErrRuntimeUnavailable, errors.New("redis unavailable"))
 	if status := clientErrorStatus(err); status != http.StatusServiceUnavailable {

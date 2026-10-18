@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	accountapp "github.com/chenyme/grok2api/backend/internal/application/account"
 	egressapp "github.com/chenyme/grok2api/backend/internal/application/egress"
@@ -57,6 +58,7 @@ type Result struct {
 type Service struct {
 	accounts AccountImporter
 	egress   EgressManager
+	nodeMu   sync.Mutex
 }
 
 func NewService(accounts AccountImporter, egress EgressManager) *Service {
@@ -102,6 +104,8 @@ func (s *Service) ImportBuild(ctx context.Context, input Input) (Result, error) 
 }
 
 func (s *Service) findOrCreateBuildNode(ctx context.Context, input Input, proxyURL string) (egressdomain.PublicNode, bool, error) {
+	s.nodeMu.Lock()
+	defer s.nodeMu.Unlock()
 	nodes, err := s.egress.ListAll(ctx, egressdomain.ScopeBuild, repository.SortQuery{})
 	if err != nil {
 		return egressdomain.PublicNode{}, false, err

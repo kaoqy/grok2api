@@ -54,23 +54,24 @@ var buildForbiddenCodePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{
 
 // Config 表示后端运行配置。
 type Config struct {
-	Server             ServerConfig            `yaml:"server"`
-	Frontend           FrontendConfig          `yaml:"frontend"`
-	Database           DatabaseConfig          `yaml:"database"`
-	RuntimeStore       RuntimeStoreConfig      `yaml:"runtimeStore"`
-	Deployment         DeploymentConfig        `yaml:"deployment"`
-	Auth               AuthConfig              `yaml:"auth"`
-	Secrets            Secrets                 `yaml:"secrets"`
-	BootstrapAdmin     BootstrapAdminConfig    `yaml:"bootstrapAdmin"`
-	Provider           ProviderConfig          `yaml:"provider"`
-	Batch              BatchConfig             `yaml:"-"`
-	Media              MediaConfig             `yaml:"media"`
-	Routing            RoutingConfig           `yaml:"routing"`
-	Audit              AuditConfig             `yaml:"audit"`
-	QualityGuard       QualityGuardConfig      `yaml:"qualityGuard"`
-	LegacyRegistration map[string]any          `yaml:"registration,omitempty"`
-	ClientKeyDefaults  ClientKeyDefaultsConfig `yaml:"clientKeyDefaults"`
-	Accounts           AccountsConfig          `yaml:"-"`
+	AccountImportKeyHash string                  `yaml:"-"`
+	Server               ServerConfig            `yaml:"server"`
+	Frontend             FrontendConfig          `yaml:"frontend"`
+	Database             DatabaseConfig          `yaml:"database"`
+	RuntimeStore         RuntimeStoreConfig      `yaml:"runtimeStore"`
+	Deployment           DeploymentConfig        `yaml:"deployment"`
+	Auth                 AuthConfig              `yaml:"auth"`
+	Secrets              Secrets                 `yaml:"secrets"`
+	BootstrapAdmin       BootstrapAdminConfig    `yaml:"bootstrapAdmin"`
+	Provider             ProviderConfig          `yaml:"provider"`
+	Batch                BatchConfig             `yaml:"-"`
+	Media                MediaConfig             `yaml:"media"`
+	Routing              RoutingConfig           `yaml:"routing"`
+	Audit                AuditConfig             `yaml:"audit"`
+	QualityGuard         QualityGuardConfig      `yaml:"qualityGuard"`
+	LegacyRegistration   map[string]any          `yaml:"registration,omitempty"`
+	ClientKeyDefaults    ClientKeyDefaultsConfig `yaml:"clientKeyDefaults"`
+	Accounts             AccountsConfig          `yaml:"-"`
 }
 
 type ServerConfig struct {
