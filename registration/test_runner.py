@@ -1,6 +1,6 @@
 import unittest
 
-from registration.runner import order_domains, parse_domains
+from registration.runner import order_domains, parse_domains, unavailable_signup_kind
 
 
 class DomainOrderingTest(unittest.TestCase):
@@ -18,6 +18,12 @@ class DomainOrderingTest(unittest.TestCase):
             ),
             ["kaoqy.me", "example.com", "china-ai.top"],
         )
+
+    def test_headless_unavailable_page_is_not_reported_as_a_domain_rejection(self):
+        self.assertEqual(unavailable_signup_kind(headless=True), "headless")
+
+    def test_headed_unavailable_page_can_be_treated_as_a_domain_rejection(self):
+        self.assertEqual(unavailable_signup_kind(headless=False), "domain")
 
 
 if __name__ == "__main__":

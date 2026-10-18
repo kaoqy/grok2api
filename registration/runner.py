@@ -453,7 +453,21 @@ def email_signup_unavailable(page: Page) -> bool:
     return any(marker in text for marker in EMAIL_SIGNUP_UNAVAILABLE_MARKERS)
 
 
-def wait_for_code_step(page: Page, timeout: int = 90) -> None:
+def unavailable_signup_kind(headless: bool) -> str:
+    """Distinguish a headless-browser risk rejection from a domain rejection."""
+    return "headless" if headless else "domain"
+
+
+def raise_unavailable_signup(headless: bool) -> None:
+    if unavailable_signup_kind(headless) == "headless":
+        raise NonRetryableError(
+            "xAI 对无头 Chromium 返回了「Email sign-up isn't available right now」。"
+            "这不是收信域名问题。请在注册设置中打开「使用有头浏览器（推荐）」并保存后重试。"
+        )
+    raise EmailDomainRejected("xAI 拒绝了当前收信域名")
+
+
+def wait_for_code_step(page: Page, timeout: int = 90, *, headless: bool = False) -> None:
     """确认邮箱提交后真的进入了验证码步骤。
 
     没发信通常就发生在这里：提交按钮没点到、表单校验没过、或者上游直接
@@ -476,7 +490,7 @@ def wait_for_code_step(page: Page, timeout: int = 90) -> None:
             )
         # 给页面几秒渲染时间再判定域名被拒，避免把中间态误判成拒绝。
         if time.time() - started >= 6 and email_signup_unavailable(page):
-            raise EmailDomainRejected("xAI 拒绝了当前收信域名")
+            raise_unavailable_signup(headless)
         error_text = page.evaluate(
             """() => {
                 const el = document.querySelector(
@@ -508,9 +522,9 @@ def wait_for_code_step(page: Page, timeout: int = 90) -> None:
         )
     visible = str(state.get("text") or "").strip()
     if email_signup_unavailable(page):
-        raise EmailDomainRejected(
-            f"xAI 拒绝了当前收信域名。页面内容: {visible or '（空）'}"
-        )
+        if unavailable_signup_kind(headless) == "headless":
+            raise_unavailable_signup(headless)
+        raise EmailDomainRejected(f"xAI 拒绝了当前收信域名。页面内容: {visible or '（空）'}")
     raise RuntimeError(
         f"提交邮箱后未进入验证码页面（当前 URL={page.url}）。"
         f"页面可见内容: {visible or '（空）'}"
@@ -731,6 +745,11 @@ def run_one(payload: dict[str, Any], attempt: int = 1) -> dict[str, str]:
         )
         page = context.new_page()
         page.goto("https://accounts.x.ai/sign-up?redirect=grok-com", wait_until="domcontentloaded", timeout=90000)
+        if headless:
+            emit(
+                "progress",
+                "当前是无头模式。xAI 可能拒绝邮箱注册；如需稳定注册请打开「使用有头浏览器（推荐）」。",
+            )
         click_email_signup(page)
         emit("progress", "已进入注册页")
         raw_domains = order_domains(
@@ -752,7 +771,7 @@ def run_one(payload: dict[str, Any], attempt: int = 1) -> dict[str, str]:
             emit("progress", f"已创建邮箱 {address}", email=address)
             fill_email(page, address)
             try:
-                wait_for_code_step(page)
+                wait_for_code_step(page, headless=headless)
                 accepted = True
                 break
             except EmailDomainRejected as exc:

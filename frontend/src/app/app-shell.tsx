@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Box, Eye, Image, KeyRound, Languages, LayoutDashboard, LogOut, Menu, Monitor, Moon, MoreHorizontal, Settings, ShieldCheck, Sparkles, Sun, UserPlus, Users, Video } from "lucide-react";
+import { Box, Eye, Image, KeyRound, Languages, LayoutDashboard, LogOut, Menu, MessageSquareText, Monitor, Moon, MoreHorizontal, Settings, Sun, UserPlus, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
@@ -24,13 +24,11 @@ const navigation = [
   { href: "/dashboard", label: "nav.dashboard", icon: LayoutDashboard },
   { href: "/accounts", label: "nav.accounts", icon: Users },
   { href: "/registration", label: "nav.registration", icon: UserPlus },
+  { href: "/playground", label: "nav.creativeConsole", icon: MessageSquareText },
+  { href: "/request-audits", label: "nav.audits", icon: Eye },
   { href: "/client-keys", label: "nav.clientKeys", icon: KeyRound },
   { href: "/models", label: "nav.models", icon: Box },
   { href: "/gallery", label: "nav.gallery", icon: Image },
-  { href: "/video-gallery", label: "nav.videoGallery", icon: Video },
-  { href: "/request-audits", label: "nav.audits", icon: Eye },
-  { href: "/quality-guard", label: "nav.qualityGuard", icon: ShieldCheck },
-  { href: "/creative-console", label: "nav.creativeConsole", icon: Sparkles },
 ] as const;
 
 export function AppShell() {
@@ -40,7 +38,7 @@ export function AppShell() {
   const { setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const isMediaWorkspace = ["/creative-console", "/gallery", "/video-gallery"].includes(location.pathname);
+  const isMediaWorkspace = ["/playground", "/gallery"].includes(location.pathname);
   const settingsActive = location.pathname.startsWith("/settings");
 
   const passwordSchema = z.object({

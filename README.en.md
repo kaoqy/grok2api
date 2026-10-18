@@ -28,13 +28,15 @@ because the newest models are served exclusively through Build.
 
 | Capability | Description |
 | --- | --- |
-| Headless registration | Playwright with a real Chromium inside the container; drives the signup page, captcha and bot checks automatically |
+| Automatic registration | Playwright with Chromium through Xvfb in headed mode; drives the signup page, captcha and bot checks automatically |
 | Automatic Build activation | Right after registration, the same browser session completes the Device authorization and produces a Build account |
 | Per-account proxy binding | Choose a proxy node before registering; every later request from that account leaves through that exact egress |
 | Scheduled registration | Set a daily target and the system spreads the work across randomized times of day |
+| Registration diagnosis | Distinguishes headless-browser risk, Cloudflare blocks, code rate limits, domain rejection, mail delivery, Build conversion and browser failures |
 | Proxy pool | HTTP / HTTPS / SOCKS4 / SOCKS5 / SOCKS5H, subscription import and health checks |
 | Quota-aware rotation | When free quota, per-model quota or paid balance runs out, the account is retired and traffic rotates to the next healthy one |
-| Request audit | Full records of request, account, egress, latency, token usage and failure reason |
+| Request records | Request, account, model, egress, latency, first-token speed, token usage and failure reason |
+| Browser playground | Select a client key and chat directly with SSE streaming, reasoning, web search and image generation |
 | First-run setup | The first visit after deployment opens the administrator setup page; no pre-filled credentials required |
 | Unified API | OpenAI- and Anthropic-compatible endpoints with streaming support |
 
@@ -167,7 +169,7 @@ registration:
   cloudflareKey: "your-admin-password"
   messagesPath: "/api/mails"
   defaultDomains: "your-mail-domain"
-  headless: true
+  headless: false
   chromiumPath: "/usr/bin/chromium"
   timeout: 30m
 ```
@@ -206,7 +208,7 @@ Anthropic-compatible endpoints and the Responses API are also available; see the
 .
 ├── backend/            Go backend (gateway, account pool, audit, registration scheduler)
 ├── frontend/           Chinese admin console
-├── registration/       Playwright headless registration runner
+├── registration/       Playwright virtual-display registration runner
 ├── scripts/            install / update / uninstall scripts
 ├── docker/             container entrypoint
 └── tools/              optional sidecars (egress quality guard)

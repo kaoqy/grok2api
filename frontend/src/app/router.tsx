@@ -1,7 +1,7 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 
 import { AnonymousBoundary, AuthBoundary } from "@/app/auth-boundary";
-import { DeferredAccountsPage, DeferredAppShell, DeferredClientKeysPage, DeferredCreativeConsolePage, DeferredDashboardPage, DeferredGalleryPage, DeferredModelsPage, DeferredQualityGuardPage, DeferredRegistrationPage, DeferredRequestAuditsPage, DeferredSettingsPage, DeferredVideoGalleryPage } from "@/app/deferred-pages";
+import { DeferredAccountsPage, DeferredAppShell, DeferredClientKeysPage, DeferredDashboardPage, DeferredGalleryPage, DeferredModelsPage, DeferredPlaygroundPage, DeferredRegistrationPage, DeferredRequestAuditsPage, DeferredSettingsPage } from "@/app/deferred-pages";
 import { LoginPage } from "@/features/auth/login-page";
 import { SetupPage } from "@/features/auth/setup-page";
 
@@ -23,12 +23,13 @@ export const router = createBrowserRouter([
           { path: "/dashboard", element: <DeferredDashboardPage /> },
           { path: "/accounts", element: <DeferredAccountsPage /> },
           { path: "/models", element: <DeferredModelsPage /> },
-          { path: "/creative-console", element: <DeferredCreativeConsolePage /> },
+          { path: "/playground", element: <DeferredPlaygroundPage /> },
+          { path: "/creative-console", element: <Navigate to="/playground" replace /> },
           { path: "/client-keys", element: <DeferredClientKeysPage /> },
           { path: "/gallery", element: <DeferredGalleryPage /> },
-          { path: "/video-gallery", element: <DeferredVideoGalleryPage /> },
+          { path: "/video-gallery", element: <Navigate to="/gallery" replace /> },
           { path: "/request-audits", element: <DeferredRequestAuditsPage /> },
-          { path: "/quality-guard", element: <DeferredQualityGuardPage /> },
+          { path: "/quality-guard", element: <Navigate to="/dashboard" replace /> },
           { path: "/registration", element: <DeferredRegistrationPage /> },
           { path: "/settings", element: <DeferredSettingsPage /> },
         ],

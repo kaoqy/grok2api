@@ -181,7 +181,7 @@ qualityGuard:
     encryptedBytesPerReasoningToken: 4
 
 registration:
-  # [按需启用] 启用内嵌无头注册。Docker 镜像已包含 Playwright + Chromium。
+  # [按需启用] 启用内嵌浏览器注册。Docker 镜像已包含 Playwright + Chromium + Xvfb。
   enabled: false
   # [按需修改] 开启后按随机时间自动完成单日注册目标。
   autoEnabled: false

@@ -193,24 +193,12 @@ export function CreativeConsolePage() {
     <div className="flex h-[calc(100dvh-5rem)] min-h-[36rem] flex-col gap-5 overflow-hidden">
       <PageHeader title={t("creativeConsole.title")} description={t("creativeConsole.description")} />
 
-      <aside className="flex shrink-0 flex-col gap-2 rounded-lg bg-secondary/45 px-4 py-2.5 text-xs leading-5 text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <Sparkle className="size-4 shrink-0 text-foreground/70" />
-          <p>{t("creativeConsole.promotion", { product: "DEEIX Chat" })}</p>
-        </div>
-        <a className="inline-flex shrink-0 items-center gap-1.5 self-end font-medium text-foreground hover:underline sm:self-auto" href="https://github.com/DEEIX-AI/DEEIX-Chat" target="_blank" rel="noopener noreferrer">
-          {t("creativeConsole.promotionAction")}<ExternalLink className="size-3.5" />
-        </a>
-      </aside>
-
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-9 shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <Tabs value={mode} onValueChange={(value) => setMode(value as CreativeMode)}>
             <TabsList className="h-9 w-full rounded-full bg-secondary/50 p-1 lg:w-auto">
               <TabsTrigger className="flex-1 gap-1.5 rounded-full px-3 lg:min-w-20 [&_svg]:size-3.5" value="chat"><MessageSquareText />{t("creativeConsole.modes.chat")}</TabsTrigger>
               <TabsTrigger className="flex-1 gap-1.5 rounded-full px-3 lg:min-w-20 [&_svg]:size-3.5" value="image"><ImageIcon />{t("creativeConsole.modes.image")}</TabsTrigger>
-              <TabsTrigger className="flex-1 gap-1.5 rounded-full px-3 lg:min-w-20 [&_svg]:size-3.5" value="video"><Video />{t("creativeConsole.modes.video")}</TabsTrigger>
-              <TabsTrigger className="flex-1 gap-1.5 rounded-full px-3 lg:min-w-20 [&_svg]:size-3.5" value="voice"><AudioLines />{t("creativeConsole.modes.voice")}</TabsTrigger>
             </TabsList>
           </Tabs>
 

@@ -12,6 +12,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { getRegistrationLogs, getRegistrationSettings, getRegistrationStatus, startRegistration, stopRegistration, updateRegistrationSettings } from "@/features/registration/registration-api";
 import type { RegistrationSettings } from "@/features/registration/registration-api";
+import { diagnoseRegistrationFailure, type RegistrationFailureKind } from "@/features/registration/registration-diagnostics";
+import { headedBrowserEnabled, headlessFromHeadedToggle } from "@/features/registration/registration-mode";
 import { chooseRegistrationProxy } from "@/features/registration/registration-proxy";
 import { listAllEgressNodes } from "@/features/settings/settings-api";
 import { PageHeader } from "@/shared/components/page-header";
@@ -66,8 +68,11 @@ export function RegistrationPage() {
   const settings = settingsQuery.data;
   const moduleEnabled = settings?.enabled === true;
   const mailReady = settings?.mailReady === true;
-  const canStart = moduleEnabled && !running && effectiveProxyNodeId !== "" && count >= 1 && count <= 20 && mailReady && !startMutation.isPending;
+  const headedBrowserReady = settings?.headless === false;
+  const canStart = moduleEnabled && headedBrowserReady && !running && effectiveProxyNodeId !== "" && count >= 1 && count <= 20 && mailReady && !startMutation.isPending;
   const logs = logsQuery.data ?? [];
+  const diagnosis: RegistrationFailureKind = running ? "none" : diagnoseRegistrationFailure(status?.error ? [...logs, status.error] : logs);
+  const lastError = [...logs].reverse().find((line) => line.startsWith("ERROR:")) ?? status?.error ?? "";
 
   return (
     <div className="w-full space-y-5">
@@ -79,6 +84,16 @@ export function RegistrationPage() {
           <div className="min-w-0 space-y-1">
             <p className="text-xs font-medium text-foreground">{t("registration.moduleDisabledTitle")}</p>
             <p className="text-xs leading-5 text-muted-foreground">{t("registration.moduleDisabledDescription")}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {settings?.headless ? (
+        <div className="flex items-start gap-3 rounded-[12px] border border-destructive/30 bg-[color-mix(in_oklab,var(--destructive)_6%,var(--card))] px-4 py-3">
+          <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs font-medium text-foreground">{t("registration.headlessRequiredTitle")}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{t("registration.headlessRequired")}</p>
           </div>
         </div>
       ) : null}
@@ -151,6 +166,7 @@ export function RegistrationPage() {
             <ReadinessItem ready={moduleEnabled} label={t("registration.moduleTitle")} />
             <ReadinessItem ready={mailReady} label={t("registration.mailTitle")} />
             <ReadinessItem ready={nodes.length > 0} label={t("registration.proxy")} />
+            <ReadinessItem ready={headedBrowserReady} label={t("registration.headlessTitle")} />
           </div>
 
           {settings ? (
@@ -199,6 +215,8 @@ export function RegistrationPage() {
             </dl>
           </div>
 
+          {diagnosis !== "none" ? <RegistrationDiagnosisPanel kind={diagnosis} lastError={lastError} /> : null}
+
           <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-[var(--shadow-panel)]">
             <header className="flex items-center gap-2 border-b border-border px-5 py-3.5">
               <Terminal className="size-3.5 text-muted-foreground" />
@@ -229,6 +247,52 @@ export function RegistrationPage() {
       </section>
     </div>
   );
+}
+
+function RegistrationDiagnosisPanel({ kind, lastError }: { kind: Exclude<RegistrationFailureKind, "none">; lastError: string }) {
+  const { t } = useTranslation();
+  const key = diagnosticTranslationKey(kind);
+  return (
+    <section className="overflow-hidden rounded-[14px] border border-destructive/30 bg-card shadow-[var(--shadow-panel)]" aria-live="polite">
+      <header className="flex items-center gap-2 border-b border-destructive/20 bg-[color-mix(in_oklab,var(--destructive)_6%,var(--card))] px-5 py-3.5">
+        <span className="flex size-7 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+          <CircleAlert className="size-3.5" />
+        </span>
+        <h2 className="text-[13px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("registrationDiagnostics.title")}</h2>
+        <span className="ml-auto rounded-full border border-destructive/25 bg-destructive/10 px-2 py-0.5 font-mono text-[10px] text-destructive">{kind}</span>
+      </header>
+      <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)]">
+        <div className="px-5 py-4">
+          <p className="text-sm font-semibold">{t(`registrationDiagnostics.${key}Title`)}</p>
+          <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{t(`registrationDiagnostics.${key}Detail`)}</p>
+        </div>
+        <div className="border-t border-border bg-secondary/55 px-5 py-4 md:border-l md:border-t-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{t("registrationDiagnostics.nextStep")}</p>
+          <p className="mt-1.5 text-xs leading-5 text-foreground">{t(`registrationDiagnostics.${key}Action`)}</p>
+        </div>
+      </div>
+      {lastError ? (
+        <details className="border-t border-border px-5 py-3">
+          <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">{t("registrationDiagnostics.lastError")}</summary>
+          <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[#16140f] px-3 py-2 font-mono text-[11px] leading-5 text-[#d6d3c9]">{lastError}</pre>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
+function diagnosticTranslationKey(kind: Exclude<RegistrationFailureKind, "none">): string {
+  switch (kind) {
+    case "headless": return "headless";
+    case "cloudflare": return "cloudflare";
+    case "rate_limit": return "rateLimit";
+    case "domain_rejected": return "domain";
+    case "mail_not_sent": return "mail";
+    case "conversion": return "conversion";
+    case "timeout": return "timeout";
+    case "browser": return "browser";
+    default: return "unknown";
+  }
 }
 
 function RegistrationSettingsPanel({
@@ -300,10 +364,11 @@ function RegistrationSettingsPanel({
         id="registration-headless"
         title={t("registration.headlessTitle")}
         description={t("registration.headlessDescription")}
-        checked={headless}
+        checked={headedBrowserEnabled(headless)}
         disabled={disabled}
-        onChange={setHeadless}
+        onChange={(headed) => setHeadless(headlessFromHeadedToggle(headed))}
       />
+      {headless ? <p className="text-xs leading-5 text-destructive">{t("registration.headlessRequired")}</p> : null}
 
       <div className="space-y-2">
         <Label htmlFor="registration-daily-target">{t("registration.dailyTarget")}</Label>

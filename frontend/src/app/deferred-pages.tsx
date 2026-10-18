@@ -6,12 +6,10 @@ const AccountsPage = lazyNamed(() => import("@/features/accounts/accounts-page")
 const AppShell = lazyNamed(() => import("@/app/app-shell"), "AppShell");
 const RequestAuditsPage = lazyNamed(() => import("@/features/audits/request-audits-page"), "RequestAuditsPage");
 const ClientKeysPage = lazyNamed(() => import("@/features/client-keys/client-keys-page"), "ClientKeysPage");
-const CreativeConsolePage = lazyNamed(() => import("@/features/creative-console/creative-console-page"), "CreativeConsolePage");
+const PlaygroundPage = lazyNamed(() => import("@/features/creative-console/creative-console-page"), "CreativeConsolePage");
 const DashboardPage = lazyNamed(() => import("@/features/dashboard/dashboard-page"), "DashboardPage");
 const GalleryPage = lazyNamed(() => import("@/features/media/gallery-page"), "GalleryPage");
-const VideoGalleryPage = lazyNamed(() => import("@/features/media/video-gallery-page"), "VideoGalleryPage");
 const ModelsPage = lazyNamed(() => import("@/features/models/models-page"), "ModelsPage");
-const QualityGuardPage = lazyNamed(() => import("@/features/quality-guard/quality-guard-page"), "QualityGuardPage");
 const RegistrationPage = lazyNamed(() => import("@/features/registration/registration-page"), "RegistrationPage");
 const SettingsPage = lazyNamed(() => import("@/features/settings/settings-page"), "SettingsPage");
 
@@ -39,10 +37,6 @@ export function DeferredModelsPage() {
   return <DeferredPage page={ModelsPage} />;
 }
 
-export function DeferredQualityGuardPage() {
-  return <DeferredPage page={QualityGuardPage} />;
-}
-
 export function DeferredRegistrationPage() {
   return <DeferredPage page={RegistrationPage} />;
 }
@@ -51,8 +45,8 @@ export function DeferredClientKeysPage() {
   return <DeferredPage page={ClientKeysPage} />;
 }
 
-export function DeferredCreativeConsolePage() {
-  return <DeferredPage page={CreativeConsolePage} />;
+export function DeferredPlaygroundPage() {
+  return <DeferredPage page={PlaygroundPage} />;
 }
 
 export function DeferredRequestAuditsPage() {
@@ -61,10 +55,6 @@ export function DeferredRequestAuditsPage() {
 
 export function DeferredGalleryPage() {
   return <DeferredPage page={GalleryPage} />;
-}
-
-export function DeferredVideoGalleryPage() {
-  return <DeferredPage page={VideoGalleryPage} />;
 }
 
 export function DeferredSettingsPage() {

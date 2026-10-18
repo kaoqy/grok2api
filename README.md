@@ -25,13 +25,15 @@
 
 | 能力 | 说明 |
 | --- | --- |
-| 无头自动注册 | 容器内置 Playwright + 真实 Chromium，自动完成注册页交互、验证码与人机验证 |
+| 自动注册 | 容器内置 Playwright + Chromium，通过 Xvfb 运行有头浏览器，自动完成注册页交互、验证码与人机验证 |
 | 自动开通 Build | 注册完成后，在同一浏览器会话内自动完成 Device 授权，直接产出 Build 账号 |
 | 账号级代理绑定 | 注册前先选代理节点，开出来的账号后续请求固定走这个出口 |
 | 定时注册 | 设置单日目标量，系统在一天内随机时间分次完成 |
+| 注册失败诊断 | 区分无头浏览器、Cloudflare 封锁、验证码限流、域名拒绝、邮件未达、Build 转换和浏览器异常 |
 | 代理池 | 支持 HTTP / HTTPS / SOCKS4 / SOCKS5 / SOCKS5H，可导入订阅并做健康检查 |
 | 额度自动切换 | 免费额度、单模型额度、付费余额耗尽时自动摘号并轮换到下一个可用账号 |
-| 请求审计 | 完整记录请求、账号、出口、耗时、Token 用量与失败原因 |
+| 请求记录 | 查看请求、账号、模型、出口、耗时、首字速度、Token 用量与失败原因 |
+| 网页游乐场 | 选择客户端密钥后直接对话，支持 SSE 流式输出、推理过程、联网搜索和图片生成 |
 | 首次初始化 | 部署后首次访问直接进入管理员设置页，无需预填账号密码 |
 | 统一 API | 暴露 OpenAI / Anthropic 兼容接口，支持流式输出 |
 
@@ -166,7 +168,7 @@ registration:
   cloudflareKey: "你的管理员密码"
   messagesPath: "/api/mails"
   defaultDomains: "你的收信域名"
-  headless: true
+  headless: false
   chromiumPath: "/usr/bin/chromium"
   timeout: 30m
 ```
@@ -204,7 +206,7 @@ curl http://127.0.0.1:28080/v1/chat/completions \
 .
 ├── backend/            Go 后端（网关、账号池、审计、注册调度）
 ├── frontend/           中文管理后台
-├── registration/       Playwright 无头注册执行器
+├── registration/       Playwright 虚拟显示注册执行器
 ├── scripts/            安装 / 更新 / 卸载脚本
 ├── docker/             容器入口脚本
 └── tools/              可选 sidecar（出口质量守护）
@@ -255,7 +257,7 @@ bash scripts/install.sh
 | 上游项目 | 用途 |
 | --- | --- |
 | [chenyme/grok2api](https://github.com/chenyme/grok2api) | 网关核心：Provider 抽象、账号调度、额度管理、请求审计、管理 API 与前端框架 |
-| [AaronL725/grok-register](https://github.com/AaronL725/grok-register) | 无头注册流程：Playwright 驱动、临时邮箱取码、Build 授权转换 |
+| [AaronL725/grok-register](https://github.com/AaronL725/grok-register) | 注册流程：Playwright 驱动、临时邮箱取码、Build 授权转换 |
 | [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub) | 管理端 UI：配色令牌、布局结构、卡片与表格视觉语言 |
 
 三个项目均采用 MIT 许可。在此基础上，本项目重构为 **Build 单通道 + 自动注册 + 后台可配置** 的形态。
