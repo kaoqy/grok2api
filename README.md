@@ -1,45 +1,42 @@
-# Grok2API（Build 版）
+# Grok2API（Build Edition）
 
-> 一个只面向 **Grok Build** 的账号管理与 API 网关：自动注册账号、自动开通 Build、
-> 账号与代理绑定、定时养号，并把统一 API 暴露给下游客户端。
+> 一个只面向 **Grok Build** 的账号池与 API 网关。运行时不再内置浏览器注册器；
+> Build 账号由本地工具注册、授权、转换后，通过管理员导入 API 写入系统，并自动绑定指定 SOCKS/HTTP 代理。
 
-<p align="center">
-  <a href="./backend/go.mod"><img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" /></a>
-  <a href="./frontend/package.json"><img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" /></a>
-  <a href="https://github.com/kaoqy/grok2api/pkgs/container/grok2api"><img alt="Docker" src="https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white" /></a>
-</p>
+当前版本：`v1.0.0`
 
 语言：[简体中文](./README.md) | [English](./README.en.md)
 
----
+## 项目定位
 
-## 这是什么
+本项目是面向最新 Grok 模型的二次开发版本，重点解决四件事：
 
-这是一个面向 **最新 Grok 模型**（Grok Build 通道，例如 `grok-4.7`）的账号池网关。
-它把「注册账号 → 开通 Build → 绑定代理 → 对外提供 API」整条链路做成自动化流程，
-并提供一个中文管理后台。
+- 统一管理 Grok Build OAuth 凭据；
+- 每个账号绑定固定出口代理，后续推理请求自动走对应代理；
+- 对外提供 OpenAI、Anthropic 与 Responses 兼容 API；
+- 在账号额度耗尽、凭据失效或出口异常时自动切换账号。
 
-与其他同类方案不同，本项目**只保留 Build 账号模块**，因为最新模型只在 Build 通道提供。
+运行时镜像保持精简，不包含 Chromium、Playwright、DrissionPage、Xvfb 或临时邮箱模块。
+账号注册和 Build Device OAuth 由本地维护工具完成，再通过导入 API 交付给服务端。
 
-## 功能特性
+## 主要功能
 
 | 能力 | 说明 |
 | --- | --- |
-| 自动注册 | 容器内置 DrissionPage + Chromium，强制通过 Xvfb 运行有头浏览器，自动完成注册、Turnstile、验证码与 Build 授权 |
-| 自动开通 Build | 注册完成后，在同一浏览器会话内自动完成 Device 授权，直接产出 Build 账号 |
-| 账号级代理绑定 | 注册前先选代理节点，开出来的账号后续请求固定走这个出口 |
-| 定时注册 | 设置单日目标量，系统在一天内随机时间分次完成 |
-| 注册失败诊断 | 区分无头浏览器、Cloudflare 封锁、验证码限流、域名拒绝、邮件未达、Build 转换和浏览器异常 |
-| 代理池 | 支持 HTTP / HTTPS / SOCKS4 / SOCKS5 / SOCKS5H，可导入订阅并做健康检查 |
-| 额度自动切换 | 免费额度、单模型额度、付费余额耗尽时自动摘号并轮换到下一个可用账号 |
-| 请求记录 | 查看请求、账号、模型、出口、耗时、首字速度、Token 用量与失败原因 |
-| 网页游乐场 | 选择客户端密钥后直接对话，支持 SSE 流式输出、推理过程、联网搜索和图片生成 |
-| 首次初始化 | 部署后首次访问直接进入管理员设置页，无需预填账号密码 |
-| 统一 API | 暴露 OpenAI / Anthropic 兼容接口，支持流式输出 |
+| Build 单通道 | 只保留 Grok Build 账号池，面向 `grok-4.7` 等最新模型 |
+| Build 导入 API | 一次提交 OAuth 凭据和代理地址，自动创建账号并绑定出口 |
+| SOCKS 代理 | 支持 SOCKS5、SOCKS5H、HTTP、HTTPS 等出口，并支持健康检查 |
+| 自动建节点 | 导入时按代理指纹复用已有 Build 节点，没有则自动创建 |
+| 自动切换账号 | 额度耗尽、凭据失效、冷却或质量异常时从调度池摘除并轮换 |
+| 模型路由 | 管理公开模型名、上游模型、账号绑定与可用范围 |
+| 流式输出 | 支持 SSE 首字与持续输出，并记录首字延迟和生成速度 |
+| 请求审计 | 记录账号、模型、出口、状态、Token、耗时和错误原因 |
+| 网页游乐场 | 使用客户端密钥直接对话，支持流式输出、推理和图片生成 |
+| 首次初始化 | 首次访问直接进入管理员创建页面 |
 
 ## 快速部署
 
-镜像已发布到 GHCR，支持 `linux/amd64` 与 `linux/arm64`，**可匿名拉取**。
+镜像发布在 GHCR，支持 `linux/amd64` 和 `linux/arm64`。
 
 ### 一键安装
 
@@ -47,38 +44,23 @@
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/install.sh | bash
 ```
 
-脚本会自动完成：
+默认安装目录为 `~/grok2api`，默认端口为 `28080`。
 
-1. 检查 Docker 环境
-2. 生成 `config.yaml`（随机 `jwtSecret` 与 `credentialEncryptionKey`）
-3. 创建数据目录并修正属主
-4. 拉取镜像并启动容器
-5. 等待服务就绪后输出访问地址
+安装后访问：
 
-默认安装目录：`~/grok2api`
-
-### 打开管理后台
-
-```
+```text
 http://127.0.0.1:28080
 ```
 
-首次访问会直接进入**管理员初始化页面**，设置账号密码后即可登录。
+首次访问会进入管理员初始化页面。
 
-### 指定版本
+### 指定版本和端口
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/install.sh \
-  | GROK2API_IMAGE=ghcr.io/kaoqy/grok2api:v1.0.0 bash
-```
-
-### 自定义参数
-
-```bash
-GROK2API_PORT=38080 \          # 宿主端口，默认 28080
-GROK2API_DIR=/opt/grok2api \   # 安装目录
-GROK2API_NAME=grok2api \       # 容器名
-  bash install.sh
+  | GROK2API_IMAGE=ghcr.io/kaoqy/grok2api:v1.0.0 \
+    GROK2API_PORT=38080 \
+    bash
 ```
 
 ### 更新
@@ -87,15 +69,15 @@ GROK2API_NAME=grok2api \       # 容器名
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/update.sh | bash
 ```
 
-拉取新镜像并重建容器，**配置与数据保持不变**。
+更新会拉取新镜像并重建容器，保留 `config.yaml` 与 `data/`。
 
 ### 卸载
 
 ```bash
-# 只删除容器，保留数据
+# 保留数据
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/uninstall.sh | bash
 
-# 连数据与配置一起删除
+# 连数据和配置一起删除
 bash scripts/uninstall.sh --purge
 ```
 
@@ -106,10 +88,7 @@ mkdir -p ~/grok2api/data
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/config.example.yaml \
   -o ~/grok2api/config.yaml
 
-# 修改 config.yaml：至少填写 secrets 段
-#   jwtSecret              >= 32 字符
-#   credentialEncryptionKey  Base64 的 32 字节密钥（写入账号后不可更改）
-
+# 修改 config.yaml 中的 jwtSecret 与 credentialEncryptionKey
 sudo chown -R 10001:10001 ~/grok2api/data
 
 docker run -d --name grok2api \
@@ -121,68 +100,76 @@ docker run -d --name grok2api \
   ghcr.io/kaoqy/grok2api:v1.0.0
 ```
 
-> `/app/data` 必须对容器内用户（uid `10001`）可写，否则 SQLite 无法创建。
-> 入口脚本会尝试自动修正，宿主机权限受限时需要手动 `chown`。
+`credentialEncryptionKey` 写入账号后不可更改，请务必备份。
 
 ## 使用流程
 
-1. 打开管理后台，完成管理员初始化
-2. 进入「设置 → 出口代理」，添加一个 `Grok Build` 作用域的代理节点并测试连通性
-3. 进入「注册」页
-   - 选择要使用的代理节点
-   - 填写注册数量
-   - 在「临时邮箱服务」区域填写服务地址、管理员密码、收信接口路径与收信域名，点保存即可，无需改配置文件
-   - 需要自动养号时，开启「自动注册」并设置单日目标量
-4. 点击开始注册。系统会自动注册账号并转为 Build 账号，绑定到所选代理
-5. 在「账号」页可以看到新账号及其额度状态
-6. 在「密钥」页创建客户端密钥，即可调用 API
+1. 打开管理后台并完成管理员初始化。
+2. 在「设置 → 出口代理」添加或确认目标代理。
+3. 在本地完成 Grok 账号注册和 Build Device OAuth。
+4. 调用管理员导入 API，把 Build OAuth 凭据与代理一起提交。
+5. 服务端导入账号，自动创建或复用 Build 代理节点，并完成账号绑定。
+6. 在「账号」页确认账号状态、额度和出口。
+7. 在「密钥」页创建客户端密钥，即可调用推理 API。
 
-## 配置说明
+## Build 账号导入 API
 
-> 临时邮箱相关字段（`cloudflareBase` / `cloudflareKey` / `messagesPath` / `defaultDomains`）
-> 推荐直接在「注册」页填写并保存，保存后立即生效、随数据卷持久化，并覆盖 `config.yaml` 中的同名配置。
-> 以下 YAML 片段仅用于在首次启动前预置。
-
-`config.yaml` 关键字段：
-
-```yaml
-server:
-  listen: "0.0.0.0:28080"
-
-secrets:
-  jwtSecret: "<至少 32 字符随机串>"
-  credentialEncryptionKey: "<Base64 的 32 字节密钥>"
-
-database:
-  driver: sqlite
-  sqlite:
-    path: "./data/backend.db"
-
-registration:
-  enabled: true            # 启用注册模块
-  autoEnabled: false       # 是否开启定时自动注册
-  dailyTarget: 10          # 单日注册目标量
-  pythonPath: "/opt/registration-venv/bin/python"
-  runnerPath: "/app/registration/runner.py"
-  cloudflareBase: "https://你的临时邮箱服务地址"
-  cloudflareKey: "你的管理员密码"
-  messagesPath: "/api/mails"
-  defaultDomains: "你的收信域名"
-  headless: false
-  chromiumPath: "/usr/bin/chromium"
-  timeout: 30m
+```http
+POST /api/admin/v1/account-imports/build
+Authorization: Bearer <管理员访问令牌>
+Content-Type: application/json
 ```
 
-> `credentialEncryptionKey` 一旦写入账号就不能再改，否则历史凭据无法解密。
-> 请注意备份。
+请求示例：
+
+```json
+{
+  "email": "user@example.com",
+  "name": "Grok Build 01",
+  "clientId": "b1a00492-073a-47ea-816f-4c329264a828",
+  "accessToken": "<access token>",
+  "refreshToken": "<refresh token>",
+  "idToken": "<id token>",
+  "expiresAt": "2026-10-18T15:06:40Z",
+  "proxyName": "Singapore Oracle",
+  "proxyUrl": "socks5://user:pass@129.150.51.127:4499"
+}
+```
+
+`accessToken` 和 `refreshToken` 至少提供一个；生产环境建议完整提交。
+
+成功响应包含账号、代理节点和复用状态：
+
+```json
+{
+  "data": {
+    "created": 1,
+    "updated": 0,
+    "skipped": 0,
+    "failed": 0,
+    "accountId": "123",
+    "egressNodeId": "45",
+    "egressNodeName": "Singapore Oracle",
+    "proxyDisplay": "129.150.51.127:4499",
+    "reusedEgressNode": true
+  }
+}
+```
+
+导入逻辑会按规范化后的代理地址计算指纹：
+
+- 已有同指纹的启用 Build 节点时直接复用；
+- 没有时创建新的 Build 节点；
+- 每个导入账号使用 `manual` 模式绑定到该节点；
+- 后续该账号的请求固定走对应代理。
 
 ## 调用 API
 
-创建客户端密钥后，使用 OpenAI 兼容格式调用：
+创建客户端密钥后，调用 OpenAI 兼容接口：
 
 ```bash
 curl http://127.0.0.1:28080/v1/chat/completions \
-  -H "Authorization: Bearer 你的客户端密钥" \
+  -H "Authorization: Bearer <客户端密钥>" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "grok-4.7",
@@ -191,76 +178,63 @@ curl http://127.0.0.1:28080/v1/chat/completions \
   }'
 ```
 
-也支持 Anthropic 兼容接口与 Responses 接口，详见管理后台的「文档」页面。
+同时提供 Anthropic Messages 与 OpenAI Responses 兼容接口。
 
-## 技术栈
+## 关键配置
 
-- 后端：Go 1.26、Gin、GORM、SQLite / PostgreSQL
-- 前端：React 19、TypeScript、Vite、Tailwind CSS、shadcn/ui
-- 自动化：Python 3、DrissionPage、Chromium、Xvfb
-- 部署：Docker（多架构镜像）、GitHub Actions 自动构建
+```yaml
+server:
+  listen: "0.0.0.0:28080"
+
+secrets:
+  jwtSecret: "<至少 32 字符随机串>"
+  credentialEncryptionKey: "<Base64 编码的 32 字节密钥>"
+
+database:
+  driver: sqlite
+  sqlite:
+    path: "./data/backend.db"
+
+runtimeStore:
+  driver: memory
+```
+
+完整字段见 [`config.example.yaml`](./config.example.yaml)。
+
+从旧版本升级时，已有 `config.yaml` 中的 `registration` 段会被安全忽略，
+不会阻止服务启动，也不再启用任何浏览器注册任务。
+
+## 镜像构建
+
+GitHub Actions 工作流位于 `.github/workflows/ghcr-image.yml`：
+
+- 推送 `main`：构建 `latest`；
+- 推送 `v*.*.*` 标签：构建对应版本；
+- 每次发布同时构建 `amd64` 与 `arm64`，再合并 manifest。
 
 ## 项目结构
 
 ```text
 .
-├── backend/            Go 后端（网关、账号池、审计、注册调度）
-├── frontend/           中文管理后台
-├── registration/       DrissionPage 有头注册执行器
-├── scripts/            安装 / 更新 / 卸载脚本
-├── docker/             容器入口脚本
-└── tools/              可选 sidecar（出口质量守护）
-```
-
-## 常见问题
-
-### 容器启动后立刻退出，提示数据库无法写入
-
-数据目录属主不对。执行：
-
-```bash
-sudo chown -R 10001:10001 ~/grok2api/data
-docker restart grok2api
-```
-
-### 注册失败：创建临时邮箱失败
-
-在「注册」页填写的 `cloudflareBase` / `cloudflareKey` / `defaultDomains` 不正确，
-或者临时邮箱服务不可访问。
-
-### 注册卡在人机验证
-
-人机验证由目标网站风控决定。更换更干净的出口代理通常能显著提高通过率。
-
-### 端口被占用
-
-换一个宿主端口：
-
-```bash
-GROK2API_PORT=38080 bash scripts/install.sh
-```
-
-### 忘记管理员密码
-
-删除数据目录里的数据库后重新初始化（会同时清空账号池）：
-
-```bash
-docker rm -f grok2api
-rm -f ~/grok2api/data/backend.db
-bash scripts/install.sh
+├── backend/            Go 网关、账号池、代理、审计与管理 API
+├── frontend/           React 管理后台
+├── scripts/            安装、更新、卸载脚本
+├── docker/             容器入口
+├── tools/              可选出口质量守护 sidecar
+└── .github/workflows/  CI 与 GHCR 多架构镜像构建
 ```
 
 ## 上游项目
 
-本项目在三个开源项目的基础上整合而来，感谢原作者的工作：
+本项目是在以下开源项目基础上重构的二次开发版本：
 
-| 上游项目 | 用途 |
+| 上游项目 | 使用内容 |
 | --- | --- |
-| [chenyme/grok2api](https://github.com/chenyme/grok2api) | 网关核心：Provider 抽象、账号调度、额度管理、请求审计、管理 API 与前端框架 |
-| [AaronL725/grok-register](https://github.com/AaronL725/grok-register) | 注册流程：DrissionPage 驱动、临时邮箱取码、Build 授权转换 |
-| [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub) | 管理端 UI：配色令牌、布局结构、卡片与表格视觉语言 |
+| [chenyme/grok2api](https://github.com/chenyme/grok2api) | 网关核心、Provider、账号调度、额度、审计与管理 API |
+| [AaronL725/grok-register](https://github.com/AaronL725/grok-register) | 早期本地注册、临时邮箱取码与 Build 授权思路 |
+| [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub) | 管理端设计语言与交互参考 |
 
-三个项目均采用 MIT 许可。在此基础上，本项目重构为 **Build 单通道 + 自动注册 + 后台可配置** 的形态。
+三个上游项目均采用 MIT 许可。本仓库已经重构为 Build-only API 网关，不再内置浏览器注册运行时。
 
 ## License
 

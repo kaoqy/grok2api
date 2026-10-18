@@ -6,48 +6,29 @@ import (
 	"time"
 
 	dashboardapp "github.com/chenyme/grok2api/backend/internal/application/dashboard"
-	registrationapp "github.com/chenyme/grok2api/backend/internal/application/registration"
 	dashboarddomain "github.com/chenyme/grok2api/backend/internal/domain/dashboard"
 	"github.com/chenyme/grok2api/backend/internal/shared/response"
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
-	service      *dashboardapp.Service
-	registration *registrationapp.Service
+	service *dashboardapp.Service
 }
 
 func NewHandler(service *dashboardapp.Service) *Handler { return &Handler{service: service} }
 
-// WithRegistration attaches the registration service so the dashboard can
-// report today's registration counters alongside gateway usage.
-func (h *Handler) WithRegistration(service *registrationapp.Service) *Handler {
-	h.registration = service
-	return h
-}
-
 func (h *Handler) Register(router *gin.RouterGroup) { router.GET("/dashboard", h.get) }
 
 type responseDTO struct {
-	Period       string             `json:"period"`
-	GeneratedAt  time.Time          `json:"generatedAt"`
-	Range        rangeDTO           `json:"range"`
-	Resources    resourcesDTO       `json:"resources"`
-	Usage        usageDTO           `json:"usage"`
-	Series       []seriesDTO        `json:"series"`
-	Activity     []activityDTO      `json:"activity"`
-	TopModels    []modelUsageDTO    `json:"topModels"`
-	Providers    []providerUsageDTO `json:"providers"`
-	Registration registrationDTO    `json:"registration"`
-}
-
-type registrationDTO struct {
-	TodayStarted   int  `json:"todayStarted"`
-	TodaySuccess   int  `json:"todaySuccess"`
-	TodayFailed    int  `json:"todayFailed"`
-	TodayConverted int  `json:"todayConverted"`
-	AutoEnabled    bool `json:"autoEnabled"`
-	DailyTarget    int  `json:"dailyTarget"`
+	Period      string             `json:"period"`
+	GeneratedAt time.Time          `json:"generatedAt"`
+	Range       rangeDTO           `json:"range"`
+	Resources   resourcesDTO       `json:"resources"`
+	Usage       usageDTO           `json:"usage"`
+	Series      []seriesDTO        `json:"series"`
+	Activity    []activityDTO      `json:"activity"`
+	TopModels   []modelUsageDTO    `json:"topModels"`
+	Providers   []providerUsageDTO `json:"providers"`
 }
 
 type rangeDTO struct {
@@ -173,18 +154,6 @@ func (h *Handler) get(c *gin.Context) {
 		Activity:  activity,
 		TopModels: topModels,
 		Providers: providers,
-		Registration: func() registrationDTO {
-			if h.registration == nil {
-				return registrationDTO{}
-			}
-			stats := h.registration.DayStats()
-			status := h.registration.Status()
-			return registrationDTO{
-				TodayStarted: stats.Started, TodaySuccess: stats.Success,
-				TodayFailed: stats.Failed, TodayConverted: stats.Converted,
-				AutoEnabled: status.AutoEnabled, DailyTarget: status.DailyTarget,
-			}
-		}(),
 	})
 }
 

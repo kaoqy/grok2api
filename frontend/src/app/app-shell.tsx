@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Box, Eye, Image, KeyRound, Languages, LayoutDashboard, LogOut, Menu, MessageSquareText, Monitor, Moon, MoreHorizontal, Settings, Sun, UserPlus, Users } from "lucide-react";
+import { Box, Eye, Image, KeyRound, Languages, LayoutDashboard, LogOut, Menu, MessageSquareText, Monitor, Moon, MoreHorizontal, Settings, Sun, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
@@ -23,7 +23,6 @@ import { CurrentVersionLabel } from "@/features/system/version-update";
 const navigation = [
   { href: "/dashboard", label: "nav.dashboard", icon: LayoutDashboard },
   { href: "/accounts", label: "nav.accounts", icon: Users },
-  { href: "/registration", label: "nav.registration", icon: UserPlus },
   { href: "/playground", label: "nav.creativeConsole", icon: MessageSquareText },
   { href: "/request-audits", label: "nav.audits", icon: Eye },
   { href: "/client-keys", label: "nav.clientKeys", icon: KeyRound },

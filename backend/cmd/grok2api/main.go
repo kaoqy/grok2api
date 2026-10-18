@@ -2,7 +2,7 @@ package main
 
 // @title Grok2API
 // @version 1.0
-// @description Grok Build 与 Grok Web 多账号 API 网关。
+// @description Grok Build 账号池与兼容 API 网关。
 // @BasePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header

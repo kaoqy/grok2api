@@ -933,7 +933,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Grok2API",
-	Description:      "Grok Build 与 Grok Web 多账号 API 网关。",
+	Description:      "Grok Build 账号池与兼容 API 网关。",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

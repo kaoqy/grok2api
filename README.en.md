@@ -1,89 +1,62 @@
 # Grok2API (Build Edition)
 
-> An account manager and API gateway dedicated to **Grok Build**: automatic
-> registration, automatic Build activation, per-account proxy binding, scheduled
-> account farming, and a unified API for downstream clients.
+> A Build-only Grok account pool and API gateway. The runtime no longer embeds a
+> browser registration stack. Build credentials are registered and converted
+> locally, then imported through an authenticated API and pinned to a proxy.
 
-<p align="center">
-  <a href="./backend/go.mod"><img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" /></a>
-  <a href="./frontend/package.json"><img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" /></a>
-  <a href="https://github.com/kaoqy/grok2api/pkgs/container/grok2api"><img alt="Docker" src="https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white" /></a>
-</p>
+Version: `v1.0.0`
 
 Language: [简体中文](./README.md) | English
 
----
+## Scope
 
-## What this is
+This project is a derivative focused on:
 
-This is an account-pool gateway aimed at the **latest Grok models** (the Grok Build
-channel, for example `grok-4.7`). It automates the whole loop of
-register -> activate Build -> bind a proxy -> serve an API, and ships with a
-Chinese admin console.
+- Grok Build OAuth account management;
+- one fixed egress proxy per account;
+- OpenAI-, Anthropic-, and Responses-compatible APIs;
+- automatic account rotation after credential, quota, health, or egress failures.
 
-Unlike other similar projects, this one keeps **only the Build account module**,
-because the newest models are served exclusively through Build.
+The runtime image does not include Chromium, Playwright, DrissionPage, Xvfb, or a
+temp-mail client. Local tooling performs signup and Build Device OAuth first; the
+server receives the resulting credentials through the import API.
 
 ## Features
 
 | Capability | Description |
 | --- | --- |
-| Automatic registration | DrissionPage with Chromium through Xvfb in enforced headed mode; handles signup, Turnstile, email verification and Build authorization |
-| Automatic Build activation | Right after registration, the same browser session completes the Device authorization and produces a Build account |
-| Per-account proxy binding | Choose a proxy node before registering; every later request from that account leaves through that exact egress |
-| Scheduled registration | Set a daily target and the system spreads the work across randomized times of day |
-| Registration diagnosis | Distinguishes headless-browser risk, Cloudflare blocks, code rate limits, domain rejection, mail delivery, Build conversion and browser failures |
-| Proxy pool | HTTP / HTTPS / SOCKS4 / SOCKS5 / SOCKS5H, subscription import and health checks |
-| Quota-aware rotation | When free quota, per-model quota or paid balance runs out, the account is retired and traffic rotates to the next healthy one |
-| Request records | Request, account, model, egress, latency, first-token speed, token usage and failure reason |
-| Browser playground | Select a client key and chat directly with SSE streaming, reasoning, web search and image generation |
-| First-run setup | The first visit after deployment opens the administrator setup page; no pre-filled credentials required |
-| Unified API | OpenAI- and Anthropic-compatible endpoints with streaming support |
+| Build-only pool | Keeps Grok Build as the only account provider and targets current models such as `grok-4.7` |
+| Build import API | Imports OAuth credentials and a proxy in one request |
+| Automatic egress setup | Reuses a matching Build proxy node or creates one automatically |
+| Per-account proxy | Every imported account is manually bound to its import proxy |
+| Account rotation | Removes exhausted, invalid, cooling, or unhealthy accounts from scheduling |
+| Model routes | Controls public model IDs, upstream targets, account bindings, and availability |
+| Streaming | SSE streaming with first-token and generation-speed telemetry |
+| Request audits | Account, model, egress, status, tokens, latency, and failure details |
+| Browser playground | Test chat directly with a client key, including streaming and image generation |
+| First-run setup | The first visit opens the administrator setup page |
 
 ## Quick deploy
 
-Images are published to GHCR for `linux/amd64` and `linux/arm64` and can be pulled
-anonymously.
-
-### One-click install
+Images are published to GHCR for `linux/amd64` and `linux/arm64`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/install.sh | bash
 ```
 
-The script takes care of:
-
-1. Checking the Docker environment
-2. Generating `config.yaml` (random `jwtSecret` and `credentialEncryptionKey`)
-3. Creating the data directory and fixing its ownership
-4. Pulling the image and starting the container
-5. Waiting for readiness and printing the access URL
-
 Default install directory: `~/grok2api`
 
-### Open the admin console
+Default URL: `http://127.0.0.1:28080`
 
-```
-http://127.0.0.1:28080
-```
+The first visit opens administrator setup.
 
-The first visit opens the **administrator setup** page. Create the account and
-password, then sign in.
-
-### Pin a release
+### Pin a release and choose a port
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/install.sh \
-  | GROK2API_IMAGE=ghcr.io/kaoqy/grok2api:v1.0.0 bash
-```
-
-### Custom parameters
-
-```bash
-GROK2API_PORT=38080 \          # host port, default 28080
-GROK2API_DIR=/opt/grok2api \   # install directory
-GROK2API_NAME=grok2api \       # container name
-  bash install.sh
+  | GROK2API_IMAGE=ghcr.io/kaoqy/grok2api:v1.0.0 \
+    GROK2API_PORT=38080 \
+    bash
 ```
 
 ### Update
@@ -92,29 +65,26 @@ GROK2API_NAME=grok2api \       # container name
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/update.sh | bash
 ```
 
-Pulls the new image and recreates the container. **Configuration and data are kept.**
+Configuration and the `data/` volume are preserved.
 
 ### Uninstall
 
 ```bash
-# Remove the container only, keep data
+# Remove the container and keep data
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/scripts/uninstall.sh | bash
 
-# Remove data and configuration as well
+# Remove data and configuration too
 bash scripts/uninstall.sh --purge
 ```
 
-## Manual deploy
+## Manual deployment
 
 ```bash
 mkdir -p ~/grok2api/data
 curl -fsSL https://raw.githubusercontent.com/kaoqy/grok2api/main/config.example.yaml \
   -o ~/grok2api/config.yaml
 
-# Edit config.yaml: at minimum fill in the secrets section
-#   jwtSecret                >= 32 characters
-#   credentialEncryptionKey  Base64 of a 32-byte key (cannot be changed once accounts exist)
-
+# Set jwtSecret and credentialEncryptionKey in config.yaml
 sudo chown -R 10001:10001 ~/grok2api/data
 
 docker run -d --name grok2api \
@@ -126,64 +96,68 @@ docker run -d --name grok2api \
   ghcr.io/kaoqy/grok2api:v1.0.0
 ```
 
-> `/app/data` must be writable by the container user (uid `10001`), otherwise
-> SQLite cannot create its database. The entrypoint tries to fix this, but on
-> restricted hosts you may need to `chown` manually.
+`credentialEncryptionKey` cannot be changed after credentials have been stored.
 
-## Usage flow
+## Workflow
 
-1. Open the admin console and complete administrator setup
-2. Go to **Settings -> Egress proxies**, add a node scoped to `Grok Build`, and test connectivity
-3. Go to the **Registration** page
-   - Select the proxy node to use
-   - Enter how many accounts to create
-   - For continuous farming, enable **auto registration** and set a daily target
-4. Start registration. Accounts are created, converted to Build, and bound to the selected proxy
-5. The **Accounts** page shows the new accounts and their quota state
-6. Create a client key on the **Keys** page, then call the API
+1. Complete administrator setup.
+2. Add or confirm the target proxy under **Settings -> Egress proxies**.
+3. Register the Grok account and complete Build Device OAuth with local tooling.
+4. Submit the resulting credentials and proxy through the import API.
+5. The service imports the account, creates or reuses the Build proxy node, and binds the account.
+6. Verify the account, quota, and egress on the **Accounts** page.
+7. Create a client key and call the inference API.
 
-## Configuration
+## Build import API
 
-Key fields in `config.yaml`:
-
-```yaml
-server:
-  listen: "0.0.0.0:28080"
-
-secrets:
-  jwtSecret: "<random string, at least 32 chars>"
-  credentialEncryptionKey: "<Base64 of a 32-byte key>"
-
-database:
-  driver: sqlite
-  sqlite:
-    path: "./data/backend.db"
-
-registration:
-  enabled: true            # enable the registration module
-  autoEnabled: false       # enable scheduled auto registration
-  dailyTarget: 10          # accounts per day
-  pythonPath: "/opt/registration-venv/bin/python"
-  runnerPath: "/app/registration/runner.py"
-  cloudflareBase: "https://your-temp-mail-host"
-  cloudflareKey: "your-admin-password"
-  messagesPath: "/api/mails"
-  defaultDomains: "your-mail-domain"
-  headless: false
-  chromiumPath: "/usr/bin/chromium"
-  timeout: 30m
+```http
+POST /api/admin/v1/account-imports/build
+Authorization: Bearer <admin-access-token>
+Content-Type: application/json
 ```
 
-> `credentialEncryptionKey` cannot be changed after accounts have been written,
-> or their stored credentials can no longer be decrypted. Back it up.
+```json
+{
+  "email": "user@example.com",
+  "name": "Grok Build 01",
+  "clientId": "b1a00492-073a-47ea-816f-4c329264a828",
+  "accessToken": "<access token>",
+  "refreshToken": "<refresh token>",
+  "idToken": "<id token>",
+  "expiresAt": "2026-10-18T15:06:40Z",
+  "proxyName": "Singapore Oracle",
+  "proxyUrl": "socks5://user:pass@129.150.51.127:4499"
+}
+```
 
-## Calling the API
+At least one of `accessToken` and `refreshToken` is required; production imports
+should provide the complete OAuth set.
 
-After creating a client key, call it with the OpenAI-compatible format:
+```json
+{
+  "data": {
+    "created": 1,
+    "updated": 0,
+    "skipped": 0,
+    "failed": 0,
+    "accountId": "123",
+    "egressNodeId": "45",
+    "egressNodeName": "Singapore Oracle",
+    "proxyDisplay": "129.150.51.127:4499",
+    "reusedEgressNode": true
+  }
+}
+```
+
+The importer normalizes the proxy URL and computes its fingerprint. It reuses an
+enabled Build node with the same fingerprint, otherwise it creates one. Each
+imported account is bound to that node in `manual` mode.
+
+## API call
 
 ```bash
 curl http://127.0.0.1:28080/v1/chat/completions \
-  -H "Authorization: Bearer your-client-key" \
+  -H "Authorization: Bearer <client-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "grok-4.7",
@@ -192,75 +166,42 @@ curl http://127.0.0.1:28080/v1/chat/completions \
   }'
 ```
 
-Anthropic-compatible endpoints and the Responses API are also available; see the
-**Docs** page in the admin console.
+Anthropic Messages and OpenAI Responses compatibility endpoints are also available.
 
-## Tech stack
+When upgrading from an older release, a legacy `registration` section in an
+existing `config.yaml` is ignored safely. It neither blocks startup nor enables
+any browser registration task.
 
-- Backend: Go 1.26, Gin, GORM, SQLite / PostgreSQL
-- Frontend: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui
-- Automation: Python 3, DrissionPage, Chromium, Xvfb
-- Deployment: Docker (multi-arch images), GitHub Actions auto build
+## Image builds
 
-## Project layout
+[`ghcr-image.yml`](./.github/workflows/ghcr-image.yml) builds:
+
+- `latest` on pushes to `main`;
+- version tags on `v*.*.*`;
+- `amd64` and `arm64` images, merged into one multi-architecture manifest.
+
+## Layout
 
 ```text
 .
-├── backend/            Go backend (gateway, account pool, audit, registration scheduler)
-├── frontend/           Chinese admin console
-├── registration/       DrissionPage headed registration runner
-├── scripts/            install / update / uninstall scripts
+├── backend/            Go gateway, account pool, proxy, audit, admin API
+├── frontend/           React admin console
+├── scripts/            install, update, uninstall
 ├── docker/             container entrypoint
-└── tools/              optional sidecars (egress quality guard)
+├── tools/              optional egress quality guard
+└── .github/workflows/  CI and multi-arch GHCR builds
 ```
 
-## FAQ
+## Upstream projects
 
-### The container exits immediately, complaining it cannot write the database
+| Project | Contribution |
+| --- | --- |
+| [chenyme/grok2api](https://github.com/chenyme/grok2api) | Gateway core, provider abstraction, account scheduling, quota, audit, and admin API |
+| [AaronL725/grok-register](https://github.com/AaronL725/grok-register) | Early local registration, temp-mail verification, and Build authorization concepts |
+| [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub) | Admin console design language and interaction reference |
 
-The data directory ownership is wrong. Run:
-
-```bash
-sudo chown -R 10001:10001 ~/grok2api/data
-docker restart grok2api
-```
-
-### Registration fails: cannot create a temp mailbox
-
-`registration.cloudflareBase` / `cloudflareKey` / `defaultDomains` are not set
-correctly, or the temp-mail service is unreachable.
-
-### Registration stalls on the bot check
-
-The bot check is decided by the target site's risk engine. Switching to a cleaner
-egress proxy usually improves the pass rate a lot.
-
-### Port already in use
-
-Use a different host port:
-
-```bash
-GROK2API_PORT=38080 bash scripts/install.sh
-```
-
-### Forgot the administrator password
-
-Delete the database in the data directory and initialize again (this also clears
-the account pool):
-
-```bash
-docker rm -f grok2api
-rm -f ~/grok2api/data/backend.db
-bash scripts/install.sh
-```
-
-## Acknowledgements
-
-The gateway core, provider abstraction, account scheduling, audit layer and
-frontend framework originate from the open-source project
-[chenyme/grok2api](https://github.com/chenyme/grok2api), licensed under MIT.
-On top of it, this project is rebuilt as a **Build-only channel with automatic
-registration**.
+All three upstream projects use the MIT license. This repository is now a
+Build-only API gateway without the embedded browser registration runtime.
 
 ## License
 

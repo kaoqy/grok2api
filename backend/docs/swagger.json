@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Grok Build 与 Grok Web 多账号 API 网关。",
+        "description": "Grok Build 账号池与兼容 API 网关。",
         "title": "Grok2API",
         "contact": {},
         "version": "1.0"

@@ -179,33 +179,3 @@ qualityGuard:
     idleAccountCooldown: 15m
     minEncryptedBytes: 256
     encryptedBytesPerReasoningToken: 4
-
-registration:
-  # [按需启用] 启用内嵌浏览器注册。Docker 镜像已包含 DrissionPage + Chromium + Xvfb。
-  enabled: false
-  # [按需修改] 开启后按随机时间自动完成单日注册目标。
-  autoEnabled: false
-  # [按需修改] 单日自动注册量；0 表示不限制。
-  dailyTarget: 10
-  # [按需修改] Python 解释器路径；镜像内使用 python3。
-  pythonPath: "/opt/registration-venv/bin/python"
-  # [按需修改] DrissionPage 注册 runner 路径。
-  runnerPath: "/app/registration/runner.py"
-  # [按需修改] runner 工作目录。
-  workDir: "/app"
-  # 以下四项建议直接在管理后台「注册」页填写并保存，无需重启；
-  # 后台保存过的值优先于此处。也可以在此预置一份。
-  # 临时邮箱服务根地址，例如 https://mail.example.com。
-  cloudflareBase: ""
-  # 临时邮箱服务的管理员密码。
-  cloudflareKey: ""
-  # 邮件列表接口路径。
-  messagesPath: "/api/mails"
-  # 收信域名，多个用英文逗号分隔。
-  defaultDomains: ""
-  # 保留该字段兼容旧配置；服务端会强制使用 false，通过 Xvfb 跑有头浏览器。
-  headless: false
-  # [按需修改] 容器内 Chromium/Chrome 可执行文件路径；留空自动探测。
-  chromiumPath: "/usr/bin/chromium"
-  # [按需修改] 单个注册批次的最长运行时间。
-  timeout: 30m

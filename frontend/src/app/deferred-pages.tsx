@@ -10,7 +10,6 @@ const PlaygroundPage = lazyNamed(() => import("@/features/creative-console/creat
 const DashboardPage = lazyNamed(() => import("@/features/dashboard/dashboard-page"), "DashboardPage");
 const GalleryPage = lazyNamed(() => import("@/features/media/gallery-page"), "GalleryPage");
 const ModelsPage = lazyNamed(() => import("@/features/models/models-page"), "ModelsPage");
-const RegistrationPage = lazyNamed(() => import("@/features/registration/registration-page"), "RegistrationPage");
 const SettingsPage = lazyNamed(() => import("@/features/settings/settings-page"), "SettingsPage");
 
 function lazyNamed<T extends Record<K, ComponentType>, K extends keyof T>(loader: () => Promise<T>, exportName: K): LazyExoticComponent<T[K]> {
@@ -35,10 +34,6 @@ export function DeferredDashboardPage() {
 
 export function DeferredModelsPage() {
   return <DeferredPage page={ModelsPage} />;
-}
-
-export function DeferredRegistrationPage() {
-  return <DeferredPage page={RegistrationPage} />;
 }
 
 export function DeferredClientKeysPage() {

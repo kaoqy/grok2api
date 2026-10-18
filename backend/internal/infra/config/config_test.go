@@ -11,6 +11,25 @@ import (
 	clientkeydomain "github.com/chenyme/grok2api/backend/internal/domain/clientkey"
 )
 
+func TestLoadIgnoresLegacyRegistrationSection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(`secrets:
+  jwtSecret: "12345678901234567890123456789012"
+  credentialEncryptionKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+bootstrapAdmin:
+  password: "password123"
+registration:
+  enabled: true
+  cloudflareBase: "https://mail.example.com"
+  runnerPath: "/app/registration/runner.py"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err != nil {
+		t.Fatalf("legacy registration settings must not block upgrades: %v", err)
+	}
+}
+
 func TestLoadDatabaseURLOverridesYAMLAndSelectsPostgres(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(`secrets:

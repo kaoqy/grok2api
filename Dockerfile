@@ -48,24 +48,15 @@ FROM debian:bookworm-slim
 
 ENV TZ=Asia/Shanghai \
     GROK2API_CONFIG_SOURCE=/run/grok2api/config.yaml \
-    HOME=/home/grok2api \
-    XDG_CONFIG_HOME=/home/grok2api/.config \
-    XDG_CACHE_HOME=/home/grok2api/.cache
+    HOME=/home/grok2api
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates gosu tzdata wget xvfb xauth \
-      python3 python3-venv python3-pip \
-      chromium fonts-freefont-ttf \
-      libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
-      libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
-      libpango-1.0-0 libcairo2 && \
+      ca-certificates gosu tzdata wget && \
     rm -rf /var/lib/apt/lists/* && \
-    python3 -m venv /opt/registration-venv && \
-    /opt/registration-venv/bin/pip install --no-cache-dir playwright "DrissionPage>=4.1.1.2,<4.2" && \
     groupadd -g 10001 grok2api && \
     useradd -u 10001 -g grok2api -d /home/grok2api -m -s /usr/sbin/nologin grok2api && \
     mkdir -p /app/data /run/grok2api /var/lib/grok2api-quality-guard \
-      /home/grok2api/.config /home/grok2api/.cache && \
+      /home/grok2api && \
     chown -R grok2api:grok2api \
       /app/data \
       /run/grok2api \
@@ -77,7 +68,6 @@ WORKDIR /app
 
 COPY --from=backend-builder --chmod=0755 /out/grok2api /app/grok2api
 COPY --from=frontend-builder /src/frontend/dist /app/frontend/dist
-COPY registration /app/registration
 COPY VERSION /app/VERSION
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/grok2api-entrypoint
 

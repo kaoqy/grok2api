@@ -54,40 +54,23 @@ var buildForbiddenCodePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{
 
 // Config 表示后端运行配置。
 type Config struct {
-	Server            ServerConfig            `yaml:"server"`
-	Frontend          FrontendConfig          `yaml:"frontend"`
-	Database          DatabaseConfig          `yaml:"database"`
-	RuntimeStore      RuntimeStoreConfig      `yaml:"runtimeStore"`
-	Deployment        DeploymentConfig        `yaml:"deployment"`
-	Auth              AuthConfig              `yaml:"auth"`
-	Secrets           Secrets                 `yaml:"secrets"`
-	BootstrapAdmin    BootstrapAdminConfig    `yaml:"bootstrapAdmin"`
-	Provider          ProviderConfig          `yaml:"provider"`
-	Batch             BatchConfig             `yaml:"-"`
-	Media             MediaConfig             `yaml:"media"`
-	Routing           RoutingConfig           `yaml:"routing"`
-	Audit             AuditConfig             `yaml:"audit"`
-	QualityGuard      QualityGuardConfig      `yaml:"qualityGuard"`
-	Registration      RegistrationConfig      `yaml:"registration"`
-	ClientKeyDefaults ClientKeyDefaultsConfig `yaml:"clientKeyDefaults"`
-	Accounts          AccountsConfig          `yaml:"-"`
-}
-
-// RegistrationConfig controls the optional headless registration runner.
-type RegistrationConfig struct {
-	Enabled        bool     `yaml:"enabled"`
-	AutoEnabled    bool     `yaml:"autoEnabled"`
-	DailyTarget    int      `yaml:"dailyTarget"`
-	PythonPath     string   `yaml:"pythonPath"`
-	RunnerPath     string   `yaml:"runnerPath"`
-	WorkDir        string   `yaml:"workDir"`
-	CloudflareBase string   `yaml:"cloudflareBase"`
-	CloudflareKey  string   `yaml:"cloudflareKey"`
-	MessagesPath   string   `yaml:"messagesPath"`
-	DefaultDomains string   `yaml:"defaultDomains"`
-	Headless       bool     `yaml:"headless"`
-	ChromiumPath   string   `yaml:"chromiumPath"`
-	Timeout        Duration `yaml:"timeout"`
+	Server             ServerConfig            `yaml:"server"`
+	Frontend           FrontendConfig          `yaml:"frontend"`
+	Database           DatabaseConfig          `yaml:"database"`
+	RuntimeStore       RuntimeStoreConfig      `yaml:"runtimeStore"`
+	Deployment         DeploymentConfig        `yaml:"deployment"`
+	Auth               AuthConfig              `yaml:"auth"`
+	Secrets            Secrets                 `yaml:"secrets"`
+	BootstrapAdmin     BootstrapAdminConfig    `yaml:"bootstrapAdmin"`
+	Provider           ProviderConfig          `yaml:"provider"`
+	Batch              BatchConfig             `yaml:"-"`
+	Media              MediaConfig             `yaml:"media"`
+	Routing            RoutingConfig           `yaml:"routing"`
+	Audit              AuditConfig             `yaml:"audit"`
+	QualityGuard       QualityGuardConfig      `yaml:"qualityGuard"`
+	LegacyRegistration map[string]any          `yaml:"registration,omitempty"`
+	ClientKeyDefaults  ClientKeyDefaultsConfig `yaml:"clientKeyDefaults"`
+	Accounts           AccountsConfig          `yaml:"-"`
 }
 
 type ServerConfig struct {

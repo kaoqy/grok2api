@@ -1,9 +1,11 @@
 # Grok2API Backend
 
 > 本项目只面向 Grok Build。网关核心源自 [chenyme/grok2api](https://github.com/chenyme/grok2api)（MIT），
-> 并在 `internal/application/registration` 增加了内嵌注册服务与管理 API。
+> 注册与 Build Device OAuth 由本地工具完成，后端通过管理员导入 API
+> `POST /api/admin/v1/account-imports/build` 接收凭据并自动绑定代理。
 
-Grok2API 的 Go 后端，负责上游账号调度、协议转换、额度管理、请求审计和管理 API，并可直接托管前端构建产物。
+Grok2API 的 Go 后端，负责 Build 账号导入、代理绑定、上游账号调度、协议转换、
+额度管理、请求审计和管理 API，并可直接托管前端构建产物。
 
 ## 技术栈
 
@@ -11,6 +13,7 @@ Grok2API 的 Go 后端，负责上游账号调度、协议转换、额度管理�
 - SQLite / PostgreSQL
 - Memory / Redis
 - Grok Build OAuth 为主要通道（代码中保留 Web / Console Provider，但管理端只暴露 Build）
+- 不包含浏览器注册运行时；账号由外部工具注册、转换后导入
 
 ## 本地运行
 
@@ -57,6 +60,7 @@ PostgreSQL DSN 也可通过非空的 `GROK2API_DATABASE_URL` 注入；它的优�
 
 - `/v1/*`：兼容 API
 - `/api/admin/v1/*`：管理 API
+- `/api/admin/v1/account-imports/build`：导入 Build OAuth 凭据并绑定 SOCKS/HTTP 代理
 - `/healthz`、`/readyz`：健康与就绪探针
 - `/swagger/index.html`：公开 API Swagger，仅在 `server.swaggerEnabled: true` 时注册
 - `frontend.staticPath`：前端静态目录，默认 `./frontend/dist`

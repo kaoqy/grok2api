@@ -1,5 +1,5 @@
 import { apiRequest } from "@/shared/api/client";
-import { createObjectDecoder, hasShape, isArrayOf, isBoolean, isNumber, isOneOf, isOptional, isString } from "@/shared/api/decoder";
+import { createObjectDecoder, hasShape, isArrayOf, isNumber, isOneOf, isOptional, isString } from "@/shared/api/decoder";
 import type { PeriodValue } from "@/shared/lib/period";
 
 export type DashboardPeriod = PeriodValue;
@@ -41,14 +41,6 @@ export type DashboardDTO = {
   activity: Array<{ start: string; requests: number }>;
   topModels: Array<{ model: string; requests: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number; tokens: number; billedCostUsdTicks: number }>;
   providers: Array<{ provider: string; requests: number; successfulRequests: number; tokens: number }>;
-  registration: {
-    todayStarted: number;
-    todaySuccess: number;
-    todayFailed: number;
-    todayConverted: number;
-    autoEnabled: boolean;
-    dailyTarget: number;
-  };
 };
 
 const dashboardSeriesItem = hasShape({
@@ -78,11 +70,6 @@ const decodeDashboard = createObjectDecoder<DashboardDTO>("dashboard", {
   activity: isArrayOf(hasShape({ start: isString, requests: isNumber })),
   topModels: isArrayOf(dashboardModelItem),
   providers: isArrayOf(hasShape({ provider: isString, requests: isNumber, successfulRequests: isNumber, tokens: isNumber })),
-  registration: hasShape({
-    todayStarted: isNumber, todaySuccess: isNumber, todayFailed: isNumber, todayConverted: isNumber,
-    autoEnabled: isBoolean,
-    dailyTarget: isNumber,
-  }),
 });
 
 export function getDashboard(period: DashboardPeriod, timezone: string, refresh = false): Promise<DashboardDTO> {

@@ -1,4 +1,4 @@
-import { Activity, CircleDollarSign, Gauge, UserPlus, UsersRound, WholeWord, type LucideIcon } from "lucide-react";
+import { Activity, CircleDollarSign, Gauge, UsersRound, WholeWord, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Pie, PieChart } from "recharts";
 
@@ -21,7 +21,6 @@ export function DashboardOverview({ dashboard, locale, loading }: DashboardDataP
   const { t } = useTranslation();
   const resources = dashboard?.resources;
   const usage = dashboard?.usage;
-  const registration = dashboard?.registration;
   const cacheHitRate = (usage?.inputTokens ?? 0) > 0 ? (usage?.cachedInputTokens ?? 0) / (usage?.inputTokens ?? 1) * 100 : 0;
   const averageRequestCost = (usage?.requests ?? 0) > 0 ? usdTicksToValue(usage?.billedCostUsdTicks ?? 0) / (usage?.requests ?? 1) : 0;
   const hasFirstTokenSamples = (usage?.firstTokenSamples ?? 0) > 0;
@@ -62,26 +61,12 @@ export function DashboardOverview({ dashboard, locale, loading }: DashboardDataP
           loading={loading}
         />
       </div>
-      <div className="grid border-t border-border bg-secondary/55 md:grid-cols-3">
+      <div className="border-t border-border bg-secondary/55">
         <DashboardSecondaryMetric
           icon={Gauge}
           label={t("audits.averageFirstToken")}
           value={hasFirstTokenSamples ? formatDuration(usage?.averageFirstTokenMs ?? 0) : "—"}
           detail={performanceDetail}
-          loading={loading}
-        />
-        <DashboardSecondaryMetric
-          icon={UserPlus}
-          label={t("dashboard.todayRegistered")}
-          value={formatNumber(registration?.todayStarted ?? 0, locale)}
-          detail={t("dashboard.todayRegistrationDetail", { success: formatNumber(registration?.todaySuccess ?? 0, locale), failed: formatNumber(registration?.todayFailed ?? 0, locale) })}
-          loading={loading}
-        />
-        <DashboardSecondaryMetric
-          icon={UserPlus}
-          label={t("dashboard.todayConverted")}
-          value={formatNumber(registration?.todayConverted ?? 0, locale)}
-          detail={registration?.autoEnabled ? t("dashboard.autoRegistrationTarget", { target: formatNumber(registration?.dailyTarget ?? 0, locale) }) : t("dashboard.autoRegistrationOff")}
           loading={loading}
         />
       </div>
@@ -195,7 +180,7 @@ function DashboardMetric({ icon: Icon, label, value, detail, loading }: { icon: 
 
 function DashboardSecondaryMetric({ icon: Icon, label, value, detail, loading }: { icon: LucideIcon; label: string; value: string; detail: string; loading: boolean }) {
   return (
-    <div className="flex min-h-[82px] items-center gap-3 border-b border-border px-5 py-3 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+    <div className="flex min-h-[82px] items-center gap-3 px-5 py-3">
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-card text-primary shadow-[var(--shadow-panel)]">
         <Icon className="size-3.5" />
       </span>

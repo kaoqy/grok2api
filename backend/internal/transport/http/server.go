@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/chenyme/grok2api/backend/docs"
 	accountapp "github.com/chenyme/grok2api/backend/internal/application/account"
+	accountimportapp "github.com/chenyme/grok2api/backend/internal/application/accountimport"
 	accountsyncapp "github.com/chenyme/grok2api/backend/internal/application/accountsync"
 	adminauthapp "github.com/chenyme/grok2api/backend/internal/application/adminauth"
 	auditapp "github.com/chenyme/grok2api/backend/internal/application/audit"
@@ -17,10 +18,10 @@ import (
 	"github.com/chenyme/grok2api/backend/internal/application/gateway"
 	mediaapp "github.com/chenyme/grok2api/backend/internal/application/media"
 	modelapp "github.com/chenyme/grok2api/backend/internal/application/model"
-	registrationapp "github.com/chenyme/grok2api/backend/internal/application/registration"
 	settingsapp "github.com/chenyme/grok2api/backend/internal/application/settings"
 	updatecheckapp "github.com/chenyme/grok2api/backend/internal/application/updatecheck"
 	accounthttp "github.com/chenyme/grok2api/backend/internal/transport/http/account"
+	accountimporthttp "github.com/chenyme/grok2api/backend/internal/transport/http/accountimport"
 	adminauthhttp "github.com/chenyme/grok2api/backend/internal/transport/http/adminauth"
 	audithttp "github.com/chenyme/grok2api/backend/internal/transport/http/audit"
 	clientkeyhttp "github.com/chenyme/grok2api/backend/internal/transport/http/clientkey"
@@ -30,7 +31,6 @@ import (
 	mediahttp "github.com/chenyme/grok2api/backend/internal/transport/http/media"
 	"github.com/chenyme/grok2api/backend/internal/transport/http/middleware"
 	modelhttp "github.com/chenyme/grok2api/backend/internal/transport/http/model"
-	registrationhttp "github.com/chenyme/grok2api/backend/internal/transport/http/registration"
 	settingshttp "github.com/chenyme/grok2api/backend/internal/transport/http/settings"
 	systemhttp "github.com/chenyme/grok2api/backend/internal/transport/http/system"
 	"github.com/gin-gonic/gin"
@@ -54,6 +54,7 @@ type Dependencies struct {
 	TrafficReady           func() bool
 	AdminAuth              *adminauthapp.Service
 	Accounts               *accountapp.Service
+	AccountImports         *accountimportapp.Service
 	AccountSync            *accountsyncapp.Service
 	Models                 *modelapp.Service
 	ClientKeys             *clientkeyapp.Service
@@ -67,7 +68,6 @@ type Dependencies struct {
 	QualityGuardConfigPath string
 	QualityGuardToken      string
 	QualityGuardProbe      egressapp.QualityProbeInput
-	Registration           *registrationapp.Service
 	Updates                *updatecheckapp.Service
 }
 
@@ -153,22 +153,17 @@ func New(deps Dependencies) *gin.Engine {
 	adminProtected.Use(middleware.AdminAuth(deps.AdminAuth))
 	authHandler.RegisterAuthenticated(adminProtected)
 	accounthttp.NewHandler(deps.Accounts, deps.AccountSync).Register(adminProtected)
+	accountimporthttp.NewHandler(deps.AccountImports).Register(adminProtected)
 	modelhttp.NewHandler(deps.Models).Register(adminProtected)
 	clientkeyhttp.NewHandler(deps.ClientKeys).Register(adminProtected)
 	auditHandler := audithttp.NewHandler(deps.Audits)
 	auditHandler.Register(adminProtected)
 	dashboardHandler := dashboardhttp.NewHandler(deps.Dashboard)
-	if deps.Registration != nil {
-		dashboardHandler.WithRegistration(deps.Registration)
-	}
 	dashboardHandler.Register(adminProtected)
 	mediaHandler.RegisterAdmin(adminProtected)
 	settingshttp.NewHandler(deps.Settings).Register(adminProtected)
 	egressHandler := egresshttp.NewHandler(deps.Egress, deps.QualityGuardStatePath, deps.QualityGuardConfigPath).WithQualityGuardProbe(deps.QualityGuardProbe)
 	egressHandler.Register(adminProtected)
-	if deps.Registration != nil {
-		registrationhttp.NewHandler(deps.Registration).Register(adminProtected)
-	}
 	systemhttp.NewHandler(func() string {
 		if deps.Settings != nil {
 			return deps.Settings.PublicAPIBaseURL()

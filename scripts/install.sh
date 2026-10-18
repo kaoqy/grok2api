@@ -106,21 +106,6 @@ media:
   driver: local
   local:
     path: "./data/media"
-
-registration:
-  enabled: false
-  autoEnabled: false
-  dailyTarget: 10
-  pythonPath: "/opt/registration-venv/bin/python"
-  runnerPath: "/app/registration/runner.py"
-  workDir: "/app"
-  cloudflareBase: ""
-  cloudflareKey: ""
-  messagesPath: "/api/mails"
-  defaultDomains: ""
-  headless: false
-  chromiumPath: "/usr/bin/chromium"
-  timeout: 30m
 YAML
   chmod 600 "$CONFIG"
 fi

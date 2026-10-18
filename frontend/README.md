@@ -1,9 +1,11 @@
 # Grok2API Frontend
 
 > 前端框架源自 [chenyme/grok2api](https://github.com/chenyme/grok2api)（MIT）。
-> 本项目新增了注册页、首次管理员初始化与仪表盘注册指标，账号区仅保留 Grok Build。
+> 本项目增加首次管理员初始化，并保持 Build-only 的账号、代理、审计与游乐场体验；
+> 设计语言参考 [ardeyouxipianyi/workbuddy2api-hub](https://github.com/ardeyouxipianyi/workbuddy2api-hub)。
 
-Grok2API 的管理端 SPA，用于管理账号池、模型路由、客户端密钥、请求审计和运行设置。
+Grok2API 的管理端 SPA，用于管理 Build 账号池、模型路由、客户端密钥、出口代理、
+请求审计、游乐场和运行设置。账号注册器不属于前端运行时。
 
 ## 技术栈
 
