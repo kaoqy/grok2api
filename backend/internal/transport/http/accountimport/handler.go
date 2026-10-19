@@ -13,6 +13,7 @@ import (
 
 type importService interface {
 	ImportBuild(context.Context, accountimportapp.Input) (accountimportapp.Result, error)
+	ImportWeb(context.Context, accountimportapp.Input) (accountimportapp.Result, error)
 }
 
 type importKeyService interface {
@@ -38,6 +39,15 @@ type createBuildRequest struct {
 	ProxyURL     string `json:"proxyUrl"`
 }
 
+type createWebRequest struct {
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	SSOToken  string `json:"ssoToken"`
+	Tier      string `json:"tier"`
+	ProxyName string `json:"proxyName"`
+	ProxyURL  string `json:"proxyUrl"`
+}
+
 type createBuildResponse struct {
 	Created          int      `json:"created"`
 	Updated          int      `json:"updated"`
@@ -57,6 +67,7 @@ func NewHandler(service importService, keys importKeyService) *Handler {
 
 func (h *Handler) Register(router *gin.RouterGroup) {
 	router.POST("/account-imports/build", h.createBuild)
+	router.POST("/account-imports/web", h.createWeb)
 	router.GET("/account-imports/key", h.importKeyStatus)
 	router.POST("/account-imports/key", h.createImportKey)
 	router.DELETE("/account-imports/key", h.revokeImportKey)
@@ -64,6 +75,7 @@ func (h *Handler) Register(router *gin.RouterGroup) {
 
 func (h *Handler) RegisterImport(router *gin.RouterGroup) {
 	router.POST("/accounts/build", h.createBuild)
+	router.POST("/accounts/web", h.createWeb)
 }
 
 func (h *Handler) createBuild(c *gin.Context) {
@@ -88,10 +100,36 @@ func (h *Handler) createBuild(c *gin.Context) {
 	response.Success(c, http.StatusOK, newCreateBuildResponse(result))
 }
 
+// createWeb 导入 Grok Web 账号（生图等 Web 侧能力），并绑定到指定 SOCKS 出口。
+func (h *Handler) createWeb(c *gin.Context) {
+	var request createWebRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalidWebImport", "Web 账号导入请求格式无效")
+		return
+	}
+	result, err := h.service.ImportWeb(c.Request.Context(), accountimportapp.Input{
+		Email: request.Email, Name: request.Name, SSOToken: request.SSOToken, Tier: request.Tier,
+		ProxyName: request.ProxyName, ProxyURL: request.ProxyURL,
+	})
+	if err != nil {
+		if errors.Is(err, accountimportapp.ErrInvalidWebInput) {
+			response.Error(c, http.StatusBadRequest, "invalidWebImport", err.Error())
+			return
+		}
+		response.Error(c, http.StatusBadGateway, "webImportFailed", err.Error())
+		return
+	}
+	response.Success(c, http.StatusOK, newCreateBuildResponse(result))
+}
+
 type importKeyStatusResponse struct {
 	Configured bool   `json:"configured"`
 	Endpoint   string `json:"endpoint"`
+	Endpoints  []string `json:"endpoints"`
 }
+
+// importEndpoints 列出当前密钥可用的导入端点。
+var importEndpoints = []string{"/api/import/v1/accounts/build", "/api/import/v1/accounts/web"}
 
 func (h *Handler) importKeyStatus(c *gin.Context) {
 	if h.keys == nil {
@@ -100,7 +138,8 @@ func (h *Handler) importKeyStatus(c *gin.Context) {
 	}
 	response.Success(c, http.StatusOK, importKeyStatusResponse{
 		Configured: h.keys.AccountImportKeyConfigured(),
-		Endpoint:   "/api/import/v1/accounts/build",
+		Endpoint:   importEndpoints[0],
+		Endpoints:  importEndpoints,
 	})
 }
 
@@ -118,6 +157,7 @@ func (h *Handler) createImportKey(c *gin.Context) {
 		"configured": true,
 		"token":      token,
 		"endpoint":   "/api/import/v1/accounts/build",
+		"endpoints":  importEndpoints,
 	})
 }
 
@@ -132,7 +172,8 @@ func (h *Handler) revokeImportKey(c *gin.Context) {
 	}
 	response.Success(c, http.StatusOK, importKeyStatusResponse{
 		Configured: false,
-		Endpoint:   "/api/import/v1/accounts/build",
+		Endpoint:   importEndpoints[0],
+		Endpoints:  importEndpoints,
 	})
 }
 

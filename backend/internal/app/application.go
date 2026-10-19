@@ -624,6 +624,10 @@ func (a *Application) Run(ctx context.Context) error {
 		a.accounts.RunAccountAutoClean(taskCtx)
 		return nil
 	})
+	startBackground("build_quota_reset", func(taskCtx context.Context) error {
+		a.accounts.RunBuildQuotaReset(taskCtx)
+		return nil
+	})
 	startBackground("statsig_warmup", func(taskCtx context.Context) error {
 		a.runStatsigWarmup(taskCtx)
 		return nil

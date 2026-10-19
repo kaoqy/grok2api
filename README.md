@@ -24,7 +24,10 @@
 | 能力 | 说明 |
 | --- | --- |
 | Build 单通道 | 只保留 Grok Build 账号池，面向 `grok-4.7` 等最新模型 |
-| Build 导入 API | 一次提交 OAuth 凭据和代理地址，自动创建账号并绑定出口 |
+| Build / Web 导入 API | 一次提交 OAuth 凭据或 SSO 与代理地址，自动创建账号并绑定出口 |
+| 生图账号池 | 导入 Grok Web 账号即可使用 `grok-imagine-image` 等生图模型 |
+| 图片本地缓存 | 生图结果落盘到 `data/media`，并以公开 URL 返回，不依赖上游临时链接 |
+| 额度定时重置 | Build 免费额度按滚动 24 小时窗口恢复，到期自动复核并放回号池 |
 | SOCKS 代理 | 支持 SOCKS5、SOCKS5H、HTTP、HTTPS 等出口，并支持健康检查 |
 | 自动建节点 | 导入时按代理指纹复用已有 Build 节点，没有则自动创建 |
 | 自动切换账号 | 额度耗尽、凭据失效、冷却或质量异常时从调度池摘除并轮换 |
@@ -166,6 +169,79 @@ Content-Type: application/json
 - 没有时创建新的 Build 节点；
 - 每个导入账号使用 `manual` 模式绑定到该节点；
 - 后续该账号的请求固定走对应代理。
+
+## Web 账号导入 API（生图）
+
+Grok Web 账号承担生图等 Web 侧能力，使用同一把账号导入密钥写入：
+
+```http
+POST /api/import/v1/accounts/web
+Authorization: Bearer <账号导入密钥>
+Content-Type: application/json
+```
+
+请求示例：
+
+```json
+{
+  "email": "user@example.com",
+  "name": "Grok Web 01",
+  "ssoToken": "<sso token>",
+  "tier": "auto",
+  "proxyName": "Singapore Oracle",
+  "proxyUrl": "socks5://user:pass@129.150.51.127:4499"
+}
+```
+
+`proxyUrl` 必填。导入逻辑与 Build 一致：按代理指纹复用或创建 Grok Web 出口节点，
+再用 `manual` 模式把账号绑定到该节点，之后生图请求固定走对应代理。
+
+生图结果的二进制会写入本地媒体库，接口返回可直接访问的公开地址：
+
+```json
+{
+  "data": [
+    {
+      "mime_type": "image/jpeg",
+      "url": "https://your-domain/v1/media/images/img_xxxxxxxx"
+    }
+  ]
+}
+```
+
+## 反向代理与流式输出
+
+`/v1/chat/completions`、`/v1/responses` 等流式端点会返回
+`X-Accel-Buffering: no` 与 `Cache-Control: no-cache, no-transform`。
+nginx / openresty 识别该响应头后会对本次响应关闭代理缓冲，SSE 才会边生成边下发。
+
+如果流式请求「一直没有输出」，请检查反向代理是否改写或丢弃了这两个响应头；
+同时建议为流式路径设置足够长的 `proxy_read_timeout`（例如 600s）：
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:28080;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_read_timeout 600s;
+}
+```
+
+## Build 账号额度与恢复
+
+Build 免费账号的额度上限是 500,000 Token。上游按**滚动 24 小时窗口**计量，
+耗尽时返回 `subscription:free-usage-exhausted`，并附带
+`Usage resets over a rolling 24-hour window — tokens (actual/limit): .../500000`。
+
+也就是说额度会随窗口推移自行恢复，因此本项目**不会**用完即删账号，而是：
+
+- 耗尽后把账号移出调度池，并记录下一次复核时间；
+- 后台任务每 15 分钟复核一次已到期的账号，按同一滚动窗口口径重新统计已用 Token；
+- 已用 Token 回落到上限以下即自动恢复该账号并放回号池；
+- 仍未恢复则继续保留耗尽状态，等待下一次复核。
+
+付费账号的额度由上游账期决定，到期后同样会自动恢复。
 
 ## 调用 API
 

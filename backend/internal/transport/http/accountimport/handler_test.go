@@ -12,9 +12,10 @@ import (
 )
 
 type fakeImportService struct {
-	input  accountimportapp.Input
-	result accountimportapp.Result
-	err    error
+	input    accountimportapp.Input
+	webInput accountimportapp.Input
+	result   accountimportapp.Result
+	err      error
 }
 
 type fakeKeyService struct {
@@ -42,6 +43,11 @@ func (f *fakeKeyService) RevokeAccountImportKey(context.Context) error {
 
 func (f *fakeImportService) ImportBuild(_ context.Context, input accountimportapp.Input) (accountimportapp.Result, error) {
 	f.input = input
+	return f.result, f.err
+}
+
+func (f *fakeImportService) ImportWeb(_ context.Context, input accountimportapp.Input) (accountimportapp.Result, error) {
+	f.webInput = input
 	return f.result, f.err
 }
 
@@ -85,6 +91,43 @@ func TestCreateBuildImportSendsCredentialsAndProxyToService(t *testing.T) {
 		`"proxyDisplay":"129.150.51.127:4499"`,
 		`"reusedEgressNode":true`,
 	} {
+		if !strings.Contains(recorder.Body.String(), expected) {
+			t.Fatalf("body %s does not contain %s", recorder.Body.String(), expected)
+		}
+	}
+}
+
+// Web 账号导入端点用于生图等 Web 侧能力，同样携带代理绑定信息。
+func TestCreateWebImportSendsTokenAndProxyToService(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &fakeImportService{result: accountimportapp.Result{
+		Created: 1, AccountID: 88, AccountIDs: []uint64{88}, EgressNodeID: 42,
+		EgressNodeName: "Singapore Web", ProxyDisplay: "129.150.51.127:4499", ReusedEgressNode: true,
+	}}
+	handler := NewHandler(service, &fakeKeyService{})
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/import/v1/accounts/web", strings.NewReader(`{
+		"email":"user@example.com",
+		"name":"Primary Web",
+		"ssoToken":"sso-token-value",
+		"tier":"auto",
+		"proxyName":"Singapore Web",
+		"proxyUrl":"socks5://user:pass@129.150.51.127:4499"
+	}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.createWeb(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if service.webInput.Email != "user@example.com" || service.webInput.Name != "Primary Web" ||
+		service.webInput.SSOToken != "sso-token-value" || service.webInput.Tier != "auto" ||
+		service.webInput.ProxyURL != "socks5://user:pass@129.150.51.127:4499" {
+		t.Fatalf("web input = %#v", service.webInput)
+	}
+	for _, expected := range []string{`"created":1`, `"accountId":"88"`, `"egressNodeId":"42"`} {
 		if !strings.Contains(recorder.Body.String(), expected) {
 			t.Fatalf("body %s does not contain %s", recorder.Body.String(), expected)
 		}

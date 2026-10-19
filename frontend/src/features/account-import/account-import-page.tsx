@@ -15,11 +15,14 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   getAccountImportKeyStatus,
   importBuildAccount,
+  importWebAccount,
   revokeAccountImportKey,
   rotateAccountImportKey,
   type AccountImportKeyDTO,
   type BuildAccountImportInput,
+  type WebAccountImportInput,
 } from "@/features/account-import/account-import-api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CopyButton } from "@/shared/components/copy-button";
 import { ErrorState } from "@/shared/components/data-state";
 import { runtimeConfig } from "@/shared/config/runtime-config";
@@ -37,6 +40,15 @@ const emptyForm: BuildAccountImportInput = {
   proxyUrl: "",
 };
 
+const emptyWebForm: WebAccountImportInput = {
+  email: "",
+  name: "",
+  ssoToken: "",
+  tier: "auto",
+  proxyName: "",
+  proxyUrl: "",
+};
+
 export function AccountImportPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -44,6 +56,7 @@ export function AccountImportPage() {
   const [createdKey, setCreatedKey] = useState<AccountImportKeyDTO | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [form, setForm] = useState<BuildAccountImportInput>(emptyForm);
+  const [webForm, setWebForm] = useState<WebAccountImportInput>(emptyWebForm);
 
   const statusQuery = useQuery({
     queryKey: ["account-import", "key"],
@@ -82,17 +95,35 @@ export function AccountImportPage() {
     onError: showError,
   });
 
+  const webImportMutation = useMutation({
+    mutationFn: importWebAccount,
+    onSuccess: (value) => {
+      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success(t("accountImport.webImported", { account: value.accountId ?? value.accountIds[0] ?? "-" }));
+      setWebForm(emptyWebForm);
+      navigate("/accounts");
+    },
+    onError: showError,
+  });
+
   if (statusQuery.isError) {
     return <ErrorState message={statusQuery.error.message} onRetry={() => void statusQuery.refetch()} />;
   }
 
-  const endpoint = `${runtimeConfig.publicApiBaseUrl}${statusQuery.data?.endpoint ?? "/api/import/v1/accounts/build"}`;
+  const endpoints = statusQuery.data?.endpoints?.length
+    ? statusQuery.data.endpoints
+    : [statusQuery.data?.endpoint ?? "/api/import/v1/accounts/build"];
+  const endpoint = `${runtimeConfig.publicApiBaseUrl}${endpoints[0]}`;
   const configured = statusQuery.data?.configured ?? false;
   const keyLoading = statusQuery.isPending;
-  const example = buildCurlExample(endpoint);
+  const example = buildCurlExample(endpoint, `${runtimeConfig.publicApiBaseUrl}/api/import/v1/accounts/web`);
 
   function updateField<Key extends keyof BuildAccountImportInput>(key: Key, value: BuildAccountImportInput[Key]): void {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateWebField<Key extends keyof WebAccountImportInput>(key: Key, value: WebAccountImportInput[Key]): void {
+    setWebForm((current) => ({ ...current, [key]: value }));
   }
 
   function submitImport(event: FormEvent<HTMLFormElement>): void {
@@ -112,6 +143,23 @@ export function AccountImportPage() {
       expiresAt: form.expiresAt?.trim(),
       proxyName: form.proxyName?.trim(),
       proxyUrl: form.proxyUrl.trim(),
+    });
+  }
+
+  function submitWebImport(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    if (!webForm.ssoToken.trim() || !webForm.proxyUrl.trim()) {
+      toast.error(t("accountImport.webRequiredFields"));
+      return;
+    }
+    webImportMutation.mutate({
+      ...webForm,
+      email: webForm.email.trim(),
+      name: webForm.name?.trim(),
+      ssoToken: webForm.ssoToken.trim(),
+      tier: webForm.tier?.trim(),
+      proxyName: webForm.proxyName?.trim(),
+      proxyUrl: webForm.proxyUrl.trim(),
     });
   }
 
@@ -141,9 +189,16 @@ export function AccountImportPage() {
         <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
           <div className="min-w-0 border-b p-5 lg:border-b-0 lg:border-r">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><TerminalSquare className="size-4" />{t("accountImport.endpoint")}</div>
-            <div className="mt-3 flex min-w-0 items-center gap-2 rounded-md border bg-secondary/55 px-3 py-2.5">
-              <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-foreground">{endpoint}</code>
-              <CopyButton value={endpoint} copyLabel={t("common.copy")} />
+            <div className="mt-3 space-y-2">
+              {endpoints.map((value) => {
+                const full = `${runtimeConfig.publicApiBaseUrl}${value}`;
+                return (
+                  <div key={value} className="flex min-w-0 items-center gap-2 rounded-md border bg-secondary/55 px-3 py-2.5">
+                    <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-foreground">{full}</code>
+                    <CopyButton value={full} copyLabel={t("common.copy")} />
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               <ImportFact icon={<ShieldCheck />} value={t("accountImport.factScope")} />
@@ -206,32 +261,63 @@ export function AccountImportPage() {
       </div>
 
       <section className="rounded-lg border bg-card">
-        <header className="flex flex-col gap-2 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold">{t("accountImport.manualTitle")}</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t("accountImport.manualHelp")}</p>
+        <Tabs defaultValue="build">
+          <header className="flex flex-col gap-2 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">{t("accountImport.manualTitle")}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t("accountImport.manualHelp")}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <TabsList>
+                <TabsTrigger value="build">{t("accountImport.buildTab")}</TabsTrigger>
+                <TabsTrigger value="web">{t("accountImport.webTab")}</TabsTrigger>
+              </TabsList>
+              <Button size="sm" variant="ghost" onClick={() => navigate("/accounts")}><ArrowUpRight />{t("accountImport.openAccounts")}</Button>
+            </div>
+          </header>
+          <div className="p-5">
+          <TabsContent value="build">
+            <form onSubmit={submitImport}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <Field label={t("accountImport.email")} required value={form.email} onChange={(value) => updateField("email", value)} placeholder="name@example.com" />
+                <Field label={t("accountImport.name")} value={form.name ?? ""} onChange={(value) => updateField("name", value)} placeholder="Grok Build 01" />
+                <Field label="OAuth client ID" value={form.clientId ?? ""} onChange={(value) => updateField("clientId", value)} />
+                <Field label="Access token" required value={form.accessToken} onChange={(value) => updateField("accessToken", value)} />
+                <Field label="Refresh token" required value={form.refreshToken} onChange={(value) => updateField("refreshToken", value)} />
+                <Field label="ID token" value={form.idToken ?? ""} onChange={(value) => updateField("idToken", value)} />
+                <Field label={t("accountImport.expiresAt")} value={form.expiresAt ?? ""} onChange={(value) => updateField("expiresAt", value)} placeholder="2026-10-18T15:06:40Z" />
+                <Field label={t("accountImport.proxyName")} value={form.proxyName ?? ""} onChange={(value) => updateField("proxyName", value)} placeholder="Singapore Oracle" />
+                <Field label={t("accountImport.proxyUrl")} required value={form.proxyUrl} onChange={(value) => updateField("proxyUrl", value)} placeholder="socks5://user:pass@host:port" />
+              </div>
+              <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="max-w-[70ch] text-xs leading-5 text-muted-foreground">{t("accountImport.securityNote")}</p>
+                <Button type="submit" size="sm" disabled={importMutation.isPending}>
+                  {importMutation.isPending ? <Spinner /> : <Check />}{t("accountImport.importAction")}
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
+          <TabsContent value="web">
+            <form onSubmit={submitWebImport}>
+              <p className="mb-4 max-w-[70ch] text-xs leading-5 text-muted-foreground">{t("accountImport.webHelp")}</p>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <Field label={t("accountImport.email")} value={webForm.email} onChange={(value) => updateWebField("email", value)} placeholder="name@example.com" />
+                <Field label={t("accountImport.name")} value={webForm.name ?? ""} onChange={(value) => updateWebField("name", value)} placeholder="Grok Web 01" />
+                <Field label={t("accountImport.tier")} value={webForm.tier ?? ""} onChange={(value) => updateWebField("tier", value)} placeholder="auto" />
+                <Field label={t("accountImport.ssoToken")} required value={webForm.ssoToken} onChange={(value) => updateWebField("ssoToken", value)} placeholder="sso=..." />
+                <Field label={t("accountImport.proxyName")} value={webForm.proxyName ?? ""} onChange={(value) => updateWebField("proxyName", value)} placeholder="Singapore Oracle" />
+                <Field label={t("accountImport.proxyUrl")} required value={webForm.proxyUrl} onChange={(value) => updateWebField("proxyUrl", value)} placeholder="socks5://user:pass@host:port" />
+              </div>
+              <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="max-w-[70ch] text-xs leading-5 text-muted-foreground">{t("accountImport.securityNote")}</p>
+                <Button type="submit" size="sm" disabled={webImportMutation.isPending}>
+                  {webImportMutation.isPending ? <Spinner /> : <Check />}{t("accountImport.importWebAction")}
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => navigate("/accounts")}><ArrowUpRight />{t("accountImport.openAccounts")}</Button>
-        </header>
-        <form className="p-5" onSubmit={submitImport}>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <Field label={t("accountImport.email")} required value={form.email} onChange={(value) => updateField("email", value)} placeholder="name@example.com" />
-            <Field label={t("accountImport.name")} value={form.name ?? ""} onChange={(value) => updateField("name", value)} placeholder="Grok Build 01" />
-            <Field label="OAuth client ID" value={form.clientId ?? ""} onChange={(value) => updateField("clientId", value)} />
-            <Field label="Access token" required value={form.accessToken} onChange={(value) => updateField("accessToken", value)} />
-            <Field label="Refresh token" required value={form.refreshToken} onChange={(value) => updateField("refreshToken", value)} />
-            <Field label="ID token" value={form.idToken ?? ""} onChange={(value) => updateField("idToken", value)} />
-            <Field label={t("accountImport.expiresAt")} value={form.expiresAt ?? ""} onChange={(value) => updateField("expiresAt", value)} placeholder="2026-10-18T15:06:40Z" />
-            <Field label={t("accountImport.proxyName")} value={form.proxyName ?? ""} onChange={(value) => updateField("proxyName", value)} placeholder="Singapore Oracle" />
-            <Field label={t("accountImport.proxyUrl")} required value={form.proxyUrl} onChange={(value) => updateField("proxyUrl", value)} placeholder="socks5://user:pass@host:port" />
-          </div>
-          <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="max-w-[70ch] text-xs leading-5 text-muted-foreground">{t("accountImport.securityNote")}</p>
-            <Button type="submit" size="sm" disabled={importMutation.isPending}>
-              {importMutation.isPending ? <Spinner /> : <Check />}{t("accountImport.importAction")}
-            </Button>
-          </div>
-        </form>
+        </Tabs>
       </section>
 
       <Dialog open={createdKey !== null} onOpenChange={(open) => { if (!open) setCreatedKey(null); }}>
@@ -279,7 +365,7 @@ function Field({ label, value, onChange, placeholder, required = false }: { labe
   );
 }
 
-function buildCurlExample(endpoint: string): string {
+function buildCurlExample(endpoint: string, webEndpoint: string): string {
   return `curl -X POST '${endpoint}' \\
   -H 'Authorization: Bearer <account-import-key>' \\
   -H 'Content-Type: application/json' \\
@@ -290,6 +376,17 @@ function buildCurlExample(endpoint: string): string {
     "refreshToken": "<refresh-token>",
     "idToken": "<id-token>",
     "expiresAt": "2026-10-18T15:06:40Z",
+    "proxyName": "Singapore Oracle",
+    "proxyUrl": "socks5://user:pass@host:port"
+  }'
+
+curl -X POST '${webEndpoint}' \\
+  -H 'Authorization: Bearer <account-import-key>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "email": "name@example.com",
+    "ssoToken": "<sso-token>",
+    "tier": "auto",
     "proxyName": "Singapore Oracle",
     "proxyUrl": "socks5://user:pass@host:port"
   }'`;

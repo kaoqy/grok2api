@@ -168,6 +168,8 @@ type AccountRepository interface {
 	SaveQuotaRecovery(ctx context.Context, value account.QuotaRecovery) error
 	ClaimQuotaProbe(ctx context.Context, accountID uint64, now, leaseUntil time.Time) (bool, error)
 	ClearQuotaRecovery(ctx context.Context, accountID uint64) error
+	// ListDueQuotaRecoveries 返回指定 Provider 下额度恢复探测已到期（next_probe_at 已过）的账号。
+	ListDueQuotaRecoveries(ctx context.Context, provider account.Provider, now time.Time, limit int) ([]account.QuotaRecovery, error)
 	ResetQuotaState(ctx context.Context, provider account.Provider, accountIDs []uint64) error
 	ResetProviderQuotaState(ctx context.Context, provider account.Provider, activeOnly bool) (int64, error)
 	HasQuotaWindows(ctx context.Context, accountID uint64) (bool, error)

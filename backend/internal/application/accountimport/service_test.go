@@ -3,6 +3,7 @@ package accountimport
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -18,6 +19,31 @@ import (
 type fakeAccountImporter struct {
 	document  []byte
 	accountID uint64
+}
+
+type fakeWebAccountImporter struct {
+	document  []byte
+	accountID uint64
+}
+
+// buildAndWebImporter 同时实现 Build 与 Web 两条导入通道。
+type buildAndWebImporter struct {
+	*fakeAccountImporter
+	*fakeWebAccountImporter
+}
+
+func newBuildAndWebImporter(web *fakeWebAccountImporter) *buildAndWebImporter {
+	return &buildAndWebImporter{fakeAccountImporter: &fakeAccountImporter{}, fakeWebAccountImporter: web}
+}
+
+func (f *fakeWebAccountImporter) ImportWebCredentialsWithObserver(_ context.Context, data []byte, observer accountapp.ImportedAccountObserver) (accountapp.ImportResult, error) {
+	f.document = append([]byte(nil), data...)
+	if observer != nil {
+		if err := observer(f.accountID); err != nil {
+			return accountapp.ImportResult{}, err
+		}
+	}
+	return accountapp.ImportResult{Created: 1, AccountIDs: []uint64{f.accountID}}, nil
 }
 
 func (f *fakeAccountImporter) ImportCredentialsWithObserver(_ context.Context, data []byte, observer accountapp.ImportedAccountObserver) (accountapp.ImportResult, error) {
@@ -153,6 +179,47 @@ func TestImportBuildReusesMatchingSOCKSNodeAndBindsAccount(t *testing.T) {
 		account.AccessToken != "access-token" || account.RefreshToken != "refresh-token" || account.IDToken != "id-token" ||
 		account.ExpiresAt != "2026-10-18T15:06:40Z" {
 		t.Fatalf("account document = %#v", account)
+	}
+}
+
+// Web 账号用于生图等 Web 侧能力，导入时同样要绑定到指定的 SOCKS 出口。
+func TestImportWebReusesMatchingSOCKSNodeAndBindsAccount(t *testing.T) {
+	const proxyURL = "socks5://user:pass@129.150.51.127:4499"
+	accounts := &fakeWebAccountImporter{accountID: 88}
+	egress := &fakeEgressManager{nodes: []egressdomain.PublicNode{{
+		ID: 42, Name: "Singapore Web", Scope: egressdomain.ScopeWeb, Enabled: true,
+		ProxyConfigured: true, ProxyFingerprint: "7c01cdb4900c", ProxyDisplay: "129.150.51.127:4499",
+	}}}
+	service := NewService(newBuildAndWebImporter(accounts), egress)
+
+	result, err := service.ImportWeb(context.Background(), Input{
+		Email: "user@example.com", Name: "Primary Web", SSOToken: "sso-token-value",
+		ProxyName: "Singapore Web", ProxyURL: proxyURL,
+	})
+	if err != nil {
+		t.Fatalf("ImportWeb error: %v", err)
+	}
+	if result.Created != 1 || result.AccountID != 88 {
+		t.Fatalf("result = %#v", result)
+	}
+	if egress.assignedNodeID != 42 || len(egress.assignedIDs) != 1 || egress.assignedIDs[0] != 88 {
+		t.Fatalf("assigned node=%d ids=%v", egress.assignedNodeID, egress.assignedIDs)
+	}
+	if egress.assignedMode != accountdomain.EgressAssignmentManual {
+		t.Fatalf("assigned mode = %q", egress.assignedMode)
+	}
+	if egress.created.ProxyURL != nil || egress.created.Name != "" {
+		t.Fatalf("expected the matching web node to be reused, created = %#v", egress.created)
+	}
+	if !strings.Contains(string(accounts.document), "sso-token-value") {
+		t.Fatalf("web document = %s", accounts.document)
+	}
+}
+
+func TestImportWebRejectsMissingToken(t *testing.T) {
+	service := NewService(newBuildAndWebImporter(&fakeWebAccountImporter{}), &fakeEgressManager{})
+	if _, err := service.ImportWeb(context.Background(), Input{ProxyURL: "socks5://user:pass@1.2.3.4:1080"}); err == nil {
+		t.Fatal("expected an error for a missing SSO token")
 	}
 }
 

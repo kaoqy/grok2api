@@ -1,9 +1,10 @@
 import { apiRequest } from "@/shared/api/client";
-import { createObjectDecoder, isBoolean, isNumber, isOptional, isString } from "@/shared/api/decoder";
+import { createObjectDecoder, isArrayOf, isBoolean, isNumber, isOptional, isString } from "@/shared/api/decoder";
 
 export type AccountImportKeyStatusDTO = {
   configured: boolean;
   endpoint: string;
+  endpoints?: string[];
 };
 
 export type AccountImportKeyDTO = AccountImportKeyStatusDTO & {
@@ -35,14 +36,25 @@ export type BuildAccountImportResultDTO = {
   reusedEgressNode: boolean;
 };
 
+export type WebAccountImportInput = {
+  email: string;
+  name?: string;
+  ssoToken: string;
+  tier?: string;
+  proxyName?: string;
+  proxyUrl: string;
+};
+
 const decodeKeyStatus = createObjectDecoder<AccountImportKeyStatusDTO>("account import key status", {
   configured: isBoolean,
   endpoint: isString,
+  endpoints: isOptional(isArrayOf(isString)),
 });
 
 const decodeKey = createObjectDecoder<AccountImportKeyDTO>("account import key", {
   configured: isBoolean,
   endpoint: isString,
+  endpoints: isOptional(isArrayOf(isString)),
   token: isString,
 });
 
@@ -73,4 +85,9 @@ export function revokeAccountImportKey(): Promise<AccountImportKeyStatusDTO> {
 
 export function importBuildAccount(input: BuildAccountImportInput): Promise<BuildAccountImportResultDTO> {
   return apiRequest("/api/admin/v1/account-imports/build", { method: "POST", body: input }, decodeImportResult);
+}
+
+// importWebAccount 导入 Grok Web 账号，用于生图等 Web 侧能力。
+export function importWebAccount(input: WebAccountImportInput): Promise<BuildAccountImportResultDTO> {
+  return apiRequest("/api/admin/v1/account-imports/web", { method: "POST", body: input }, decodeImportResult);
 }

@@ -1314,6 +1314,14 @@ func (h *Handler) writeProtocolResult(c *gin.Context, result *gateway.Result, st
 		return
 	}
 	copyHeaders(c.Writer.Header(), result.Header)
+	if stream {
+		// nginx/openresty buffer upstream responses by default, so an SSE
+		// body would sit in the proxy until the upstream call finished and the
+		// client would observe "no output" for the whole request. These
+		// headers switch the proxy to streaming mode and stop intermediaries
+		// from recompressing the event stream.
+		setStreamingResponseHeaders(c.Writer.Header())
+	}
 	if result.StatusCode >= 400 {
 		errorCode = "upstream_error"
 		if stream && !isEventStreamContentType(result.Header.Get("Content-Type")) {
@@ -2371,6 +2379,21 @@ func copyHeaders(destination, source http.Header) {
 func isEventStreamContentType(value string) bool {
 	mediaType, _, err := mime.ParseMediaType(value)
 	return err == nil && strings.EqualFold(mediaType, "text/event-stream")
+}
+
+// setStreamingResponseHeaders marks a response as an event stream that must
+// not be buffered by an intermediate reverse proxy.
+//
+// X-Accel-Buffering: no is honoured by nginx and openresty: it disables
+// proxy_buffering for this response so each upstream chunk reaches the
+// client immediately. Without it a proxied SSE request appears to produce
+// no output at all until the upstream call completes.
+//
+// no-transform additionally stops intermediaries from recompressing the
+// event stream, which would otherwise re-introduce buffering.
+func setStreamingResponseHeaders(header http.Header) {
+	header.Set("X-Accel-Buffering", "no")
+	header.Set("Cache-Control", "no-cache, no-transform")
 }
 
 func writeOpenAIError(c *gin.Context, status int, code, message string) {

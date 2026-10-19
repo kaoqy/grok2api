@@ -2551,6 +2551,35 @@ func (r *AccountRepository) ClearQuotaRecovery(ctx context.Context, accountID ui
 	return result.Error
 }
 
+// ListDueQuotaRecoveries 返回额度恢复探测已到期的账号，供定时重置任务复核。
+// 只返回已启用且凭据有效的账号，避免对不可用账号重复探测。
+func (r *AccountRepository) ListDueQuotaRecoveries(ctx context.Context, provider account.Provider, now time.Time, limit int) ([]account.QuotaRecovery, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	var rows []quotaRecoveryModel
+	if err := r.db.db.WithContext(ctx).
+		Table("account_quota_recovery AS recovery").
+		Select("recovery.*").
+		Joins("JOIN provider_accounts AS account ON account.id = recovery.account_id").
+		Where("account.provider = ? AND account.enabled = ? AND account.auth_status = ?", provider, true, account.AuthStatusActive).
+		Where("recovery.next_probe_at IS NOT NULL AND recovery.next_probe_at <= ?", now.UTC()).
+		Order("recovery.next_probe_at ASC").
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	values := make([]account.QuotaRecovery, 0, len(rows))
+	for _, row := range rows {
+		values = append(values, account.QuotaRecovery{
+			AccountID: row.AccountID, Kind: account.QuotaRecoveryKind(row.Kind), Status: account.QuotaRecoveryStatus(row.Status),
+			ConfirmedUsed: row.ConfirmedUsed, ConfirmedLimit: row.ConfirmedLimit, ExhaustedAt: row.ExhaustedAt,
+			NextProbeAt: row.NextProbeAt, LastConfirmedAt: row.LastConfirmedAt, UpdatedAt: row.UpdatedAt,
+		})
+	}
+	return values, nil
+}
+
 func (r *AccountRepository) ResetQuotaState(ctx context.Context, provider account.Provider, accountIDs []uint64) error {
 	if len(accountIDs) == 0 {
 		return nil
