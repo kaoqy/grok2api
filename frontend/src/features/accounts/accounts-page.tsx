@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, ArrowRight, ClipboardPaste, Compass, Download, ExternalLink, FileUp, Link, MoreHorizontal, Pencil, Plus, RefreshCw, RotateCw, Search, ShieldAlert, SquareTerminal, TimerOff, Trash2, TriangleAlert, Webhook } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -89,9 +89,10 @@ import {
 } from "@/features/accounts/accounts-api";
 import { AccountQuota, ConsoleQuota, WebQuota } from "@/features/accounts/account-quota";
 import { AccountNameCell } from "@/features/accounts/account-name-cell";
+import { AccountEgressCell } from "@/features/accounts/account-egress-cell";
 import { WebAccountScriptsDialog } from "@/features/accounts/web-account-scripts";
 import { WebAccountSettingsDialogs, WebAccountSettingsMenu, type WebAccountConfirmationTarget } from "@/features/accounts/web-account-settings";
-import { assignEgressAccounts, listAllEgressNodes, listEgressNodes, listEgressSources, unassignEgressAccounts, type EgressScope } from "@/features/settings/settings-api";
+import { assignEgressAccounts, listAllEgressNodes, listEgressNodes, listEgressSources, unassignEgressAccounts, type EgressNodeDTO, type EgressScope } from "@/features/settings/settings-api";
 
 function isAbortError(error: unknown): boolean {
   return (error instanceof DOMException || error instanceof Error) && error.name === "AbortError";
@@ -249,13 +250,21 @@ export function AccountsPage() {
     queryKey: ["accounts", "summary"],
     queryFn: getAccountSummary,
   });
-  // The binding dialog still needs every compatible node, but only while open.
+  // Every node is needed to show which egress an account is bound to, so the
+  // list is always loaded; the binding dialog reuses the same result.
   const egressNodesQuery = useQuery({
     queryKey: ["egress-nodes", "account-binding"],
     queryFn: () => listAllEgressNodes(),
-    enabled: egressConfigurationOpen && egressConfigurationTask === "bind",
     staleTime: 60_000,
   });
+  // 账号列表要显示绑定的 SOCKS 节点名称与地址，按 ID 建立索引后直接查表。
+  const egressNodeById = useMemo(() => {
+    const index = new Map<string, EgressNodeDTO>();
+    for (const node of egressNodesQuery.data?.items ?? []) {
+      index.set(node.id, node);
+    }
+    return index;
+  }, [egressNodesQuery.data?.items]);
   // Filter choices are loaded only when the third-level menu opens. Nodes and
   // subscription sources use bounded pages so large pools do not flood the page.
   const egressFilterPrimaryScope = accountProviderPrimaryEgressScope(provider);
@@ -1183,6 +1192,13 @@ export function AccountsPage() {
   const buildSummary = summary?.providers.grok_build ?? { total: 0, available: 0 };
   const webSummary = summary?.providers.grok_web ?? { total: 0, available: 0 };
   const consoleSummary = summary?.providers.grok_console ?? { total: 0, available: 0 };
+  // 顶部指标跟随当前渠道切换，避免切到 Grok Web 后仍显示 Build 数字。
+  const providerSummary = provider === "grok_web" ? webSummary : provider === "grok_console" ? consoleSummary : buildSummary;
+  const providerAccountCountLabel = provider === "grok_web"
+    ? t("accounts.webAccountCount")
+    : provider === "grok_console"
+      ? t("accounts.consoleAccountCount")
+      : t("accounts.buildAccountCount");
   const summaryLoading = summaryQuery.isPending;
   const summaryUnavailable = summaryQuery.isError;
   const abnormalBreakdown = [
@@ -1286,8 +1302,8 @@ export function AccountsPage() {
         </div>
       </header>
       <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <AccountMetricPanel tone="text-quota-product-1" icon={<SquareTerminal />} loading={summaryLoading} label={t("accounts.buildAccountCount")} value={summaryUnavailable ? "-" : formatNumber(buildSummary.total, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(buildSummary.available, i18n.language, 0) })} />
-        <AccountMetricPanel tone="text-success" icon={<Activity />} loading={summaryLoading} label={t("dashboard.activeAccounts")} value={summaryUnavailable ? "-" : formatNumber(buildSummary.available, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(buildSummary.available, i18n.language, 0) })} />
+        <AccountMetricPanel tone="text-quota-product-1" icon={provider === "grok_web" ? <Compass /> : <SquareTerminal />} loading={summaryLoading} label={providerAccountCountLabel} value={summaryUnavailable ? "-" : formatNumber(providerSummary.total, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(providerSummary.available, i18n.language, 0) })} />
+        <AccountMetricPanel tone="text-success" icon={<Activity />} loading={summaryLoading} label={t("dashboard.activeAccounts")} value={summaryUnavailable ? "-" : formatNumber(providerSummary.available, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(providerSummary.available, i18n.language, 0) })} />
         <AccountMetricPanel
           tone={abnormalAccounts > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}
           icon={<TriangleAlert />}
@@ -1307,8 +1323,12 @@ export function AccountsPage() {
                 <SquareTerminal className="size-3.5 text-quota-product-1" />
                 <span>Grok Build</span>
               </TabsTrigger>
-              {/* Web/Console account modules are hidden: this deployment targets
-                  the latest models, which are only served by Grok Build. */}
+              {/* Grok Web 账号承担生图等 Web 侧能力，必须可见可管理。
+                  Console 账号模块保持隐藏：本部署只用 Build 与 Web。 */}
+              <TabsTrigger value="grok_web" className="gap-1.5">
+                <Compass className="size-3.5 text-quota-product-2" />
+                <span>Grok Web</span>
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           <DropdownMenu>
@@ -1462,12 +1482,12 @@ export function AccountsPage() {
           <Table viewportRows={20} rowHeight={56} className="table-fixed border-collapse min-w-[780px] xl:min-w-[960px] 2xl:min-w-[1080px]">
             <colgroup>
               <col style={{ width: "3%" }} />
-              <col style={{ width: "18%" }} />
+              <col style={{ width: "16%" }} />
               <col style={{ width: "7%" }} />
-              <col style={{ width: "7%" }} />
-              <col style={{ width: provider === "grok_build" ? "27%" : "43%" }} />
-              {provider === "grok_build" ? <col style={{ width: "16%" }} /> : null}
-              <col style={{ width: "18%" }} />
+              <col style={{ width: provider === "grok_build" ? "20%" : "30%" }} />
+              <col style={{ width: "17%" }} />
+              {provider === "grok_build" ? <col style={{ width: "14%" }} /> : null}
+              <col style={{ width: "14%" }} />
               <col style={{ width: "4%" }} />
             </colgroup>
             <TableHeader>
@@ -1477,17 +1497,18 @@ export function AccountsPage() {
                 <SortableTableHead field="type" sortBy={sort.field} sortOrder={sort.order} align="center" onSort={changeSort} className="whitespace-nowrap">{t("accountType.label")}</SortableTableHead>
                 <SortableTableHead field="status" sortBy={sort.field} sortOrder={sort.order} align="center" onSort={changeSort} className="whitespace-nowrap">{t("accounts.status")}</SortableTableHead>
                 <TableHead className={cn("whitespace-nowrap", provider !== "grok_build" && "px-6")}>{t("accounts.quota")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("accounts.egress")}</TableHead>
                 {provider === "grok_build" ? <TableHead className="whitespace-nowrap pl-4">{t("accountCredential.label")}</TableHead> : null}
                 <SortableTableHead field="createdAt" sortBy={sort.field} sortOrder={sort.order} initialOrder="desc" onSort={changeSort} className="whitespace-nowrap">{t("accounts.createdAt")}</SortableTableHead>
                 <TableActionHead />
               </TableRow>
             </TableHeader>
             {accountsQuery.isPending ? (
-              <TableBody><TableLoadingRow colSpan={provider === "grok_build" ? 8 : 7} /></TableBody>
+              <TableBody><TableLoadingRow colSpan={provider === "grok_build" ? 9 : 8} /></TableBody>
             ) : (
               <VirtualTableBody
                 items={result?.items ?? []}
-                colSpan={provider === "grok_build" ? 8 : 7}
+                colSpan={provider === "grok_build" ? 9 : 8}
                 rowHeight={56}
                 renderRow={(account) => (
 	                  <TableRow className="group h-14 [&>td]:py-1.5" key={account.id} data-state={selected.has(account.id) ? "selected" : undefined}>
@@ -1496,6 +1517,9 @@ export function AccountsPage() {
                     <TableCell className="text-center whitespace-nowrap">{provider === "grok_web" ? <WebAccountType tier={account.webTier} /> : provider === "grok_console" ? <AccountTypeText label={t("accountType.console")} variant="free" /> : <AccountType quota={account.quota} />}</TableCell>
                     <TableCell className="text-center whitespace-nowrap"><AccountStatus account={account} /></TableCell>
                     <TableCell className={provider === "grok_build" ? undefined : "px-6"}>{provider === "grok_web" ? <WebQuota windows={account.quotaWindows ?? []} locale={i18n.language} tier={account.webTier} /> : provider === "grok_console" ? <ConsoleQuota windows={account.quotaWindows ?? []} locale={i18n.language} /> : <AccountQuota quota={account.quota} billing={account.billing} locale={i18n.language} />}</TableCell>
+                    <TableCell className="min-w-0">
+                      <AccountEgressCell account={account} node={account.egressNodeId ? egressNodeById.get(account.egressNodeId) : undefined} />
+                    </TableCell>
                     {provider === "grok_build" ? <TableCell className="whitespace-nowrap pl-4 text-xs">
                       {account.refreshable ? (
                         <Tooltip>

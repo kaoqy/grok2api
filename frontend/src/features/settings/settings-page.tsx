@@ -24,13 +24,14 @@ import { cn } from "@/shared/lib/cn";
 export function SettingsPage() {
   const { t } = useTranslation();
   const { form, settingsQuery, updateMutation, reset } = useSettings();
+  const [activeGroup, setActiveGroup] = useState("build");
   const [autoCleanConfirm, setAutoCleanConfirm] = useState<"enabled" | "includeDisabled" | null>(null);
   const [unlimitedAttemptsConfirm, setUnlimitedAttemptsConfirm] = useState(false);
   const limitedRoutingAttemptsRef = useRef(3);
   const limitedVideoRoutingAttemptsRef = useRef(999);
   const autoCleanEnabled = form.watch("accounts.autoCleanReauthEnabled") === true;
   const buildForbiddenReauthEnabled = form.watch("accounts.markBuildForbiddenReauth") === true;
-  const segmentedSelectorEnabled = form.watch("routing.segmentedSelector.enabled") === true;
+  const dirtyCount = Object.keys(form.formState.dirtyFields).length;
 
   if (settingsQuery.isError) {
     return <ErrorState message={settingsQuery.error.message} onRetry={() => void settingsQuery.refetch()} />;
@@ -55,7 +56,7 @@ export function SettingsPage() {
       <header className="relative sticky top-14 z-30 -mx-2 flex min-h-12 items-center justify-between gap-3 bg-background/95 px-2 py-2 backdrop-blur-md lg:z-40 lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:-top-[100vh] lg:before:h-[100vh] lg:before:bg-background lg:before:content-['']">
         <div className="min-w-0">
           <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.025em]">{t("settings.title")}</h1>
-          <p className="sr-only">{t("settings.description")}</p>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{t(`settings.groupDescriptions.${activeGroup}`)}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Tooltip>
@@ -68,13 +69,14 @@ export function SettingsPage() {
           </Tooltip>
           <Button type="submit" size="sm" disabled={loading || updateMutation.isPending || !form.formState.isDirty}>
             {updateMutation.isPending ? <Spinner /> : null}{t("common.save")}
+            {dirtyCount > 0 ? <span className="ml-1.5 rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">{dirtyCount}</span> : null}
           </Button>
         </div>
       </header>
 
       {loading ? <div className="flex min-h-64 items-center justify-center"><Spinner /></div> : null}
       {snapshot ? (
-        <Tabs defaultValue="build" className="flex min-w-0 flex-col gap-7 lg:flex-row lg:items-start">
+        <Tabs value={activeGroup} onValueChange={setActiveGroup} className="flex min-w-0 flex-col gap-7 lg:flex-row lg:items-start">
           <TabsList className="flex h-auto w-full max-w-full shrink-0 justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-none bg-transparent p-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&>span]:rounded-md [&>span]:bg-muted/70 [&>span]:shadow-none lg:sticky lg:top-[124px] lg:w-56 lg:flex-col lg:items-stretch lg:overflow-visible">
             <TabsTrigger className="h-9 w-auto shrink-0 justify-start rounded-md px-3 text-xs data-[state=active]:font-medium lg:w-full" value="build">{t("models.providerGrokBuild")}</TabsTrigger>
             <TabsTrigger className="h-9 w-auto shrink-0 justify-start rounded-md px-3 text-xs data-[state=active]:font-medium lg:w-full" value="delivery">{t("settings.groups.delivery")}</TabsTrigger>
@@ -243,10 +245,6 @@ export function SettingsPage() {
               </SettingsField>
               <SettingsField controlId="routing-prefer-free-build" label={t("settings.routing.preferFreeBuild")} description={t("settings.routing.preferFreeBuildHelp")}><Controller control={form.control} name="routing.preferFreeBuild" render={({ field }) => <div className="flex h-9 items-center"><Switch id="routing-prefer-free-build" checked={field.value} onCheckedChange={field.onChange} /></div>} /></SettingsField>
               <SettingsField controlId="routing-mark-build-chat-denied-as-reauth" label={t("settings.routing.markBuildChatDeniedAsReauth")} description={t("settings.routing.markBuildChatDeniedAsReauthHelp")}><Controller control={form.control} name="routing.markBuildChatDeniedAsReauth" render={({ field }) => <div className="flex h-9 items-center"><Switch id="routing-mark-build-chat-denied-as-reauth" checked={field.value} onCheckedChange={field.onChange} /></div>} /></SettingsField>
-              <SettingsField controlId="routing-account-isolated-connections" label={t("settings.routing.accountIsolatedConnections")} description={t("settings.routing.accountIsolatedConnectionsHelp")}><Controller control={form.control} name="routing.accountIsolatedConnections" render={({ field }) => <div className="flex h-9 items-center"><Switch id="routing-account-isolated-connections" checked={field.value} onCheckedChange={field.onChange} /></div>} /></SettingsField>
-              <SettingsField controlId="routing-segmented-selector-enabled" label={t("settingsRoutingSegmented.enabled")} description={t("settingsRoutingSegmented.enabledHelp")}><Controller control={form.control} name="routing.segmentedSelector.enabled" render={({ field }) => <div className="flex h-9 items-center"><Switch id="routing-segmented-selector-enabled" checked={field.value} onCheckedChange={field.onChange} /></div>} /></SettingsField>
-              <SettingsField controlId="routing-segmented-min-candidates" label={t("settingsRoutingSegmented.minCandidates")} description={t("settingsRoutingSegmented.minCandidatesHelp")} error={form.formState.errors.routing?.segmentedSelector?.minCandidates?.message}><Input id="routing-segmented-min-candidates" type="number" min={100} max={1_000_000} disabled={!segmentedSelectorEnabled} {...form.register("routing.segmentedSelector.minCandidates", { valueAsNumber: true })} /></SettingsField>
-              <SettingsField controlId="routing-segmented-window-size" label={t("settingsRoutingSegmented.windowSize")} description={t("settingsRoutingSegmented.windowSizeHelp")} error={form.formState.errors.routing?.segmentedSelector?.windowSize?.message}><Input id="routing-segmented-window-size" type="number" min={8} max={256} disabled={!segmentedSelectorEnabled} {...form.register("routing.segmentedSelector.windowSize", { valueAsNumber: true })} /></SettingsField>
             </div>
             <AlertDialog open={unlimitedAttemptsConfirm} onOpenChange={setUnlimitedAttemptsConfirm}>
               <AlertDialogContent>

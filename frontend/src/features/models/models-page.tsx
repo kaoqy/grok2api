@@ -43,7 +43,8 @@ export function ModelsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [providerFilter, setProviderFilter] = useState<ModelRouteDTO["provider"] | "">("grok_build");
+  // 默认展示全部渠道：Build 负责文本推理，Grok Web 负责生图，两者都要可见。
+  const [providerFilter, setProviderFilter] = useState<ModelRouteDTO["provider"] | "">("");
   const [sort, setSort] = useState<TableSort>({ field: "", order: "asc" });
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState<ModelRouteDTO | "new" | null>(null);
@@ -242,7 +243,9 @@ export function ModelsPage() {
               </div>
               <DataTableFilters filters={[
                 { id: "provider", label: t("models.provider"), value: providerFilter, onChange: (value) => { setProviderFilter(value as ModelRouteDTO["provider"] | ""); setPage(1); setSelected(new Set()); }, options: [
+                  { value: "", label: t("common.all") },
                   { value: "grok_build", label: t("models.providerGrokBuild") },
+                  { value: "grok_web", label: t("models.providerGrokWeb") },
                 ] },
                 { id: "status", label: t("models.status"), value: statusFilter, onChange: (value) => { setStatusFilter(value); setPage(1); setSelected(new Set()); }, options: [
                   { value: "enabled", label: t("common.enabled") },
