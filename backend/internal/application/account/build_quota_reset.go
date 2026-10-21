@@ -49,6 +49,7 @@ func (s *Service) ResetExpiredBuildQuota(ctx context.Context, now time.Time) (in
 		return 0, err
 	}
 	restored := 0
+	restoredIDs := make([]uint64, 0, len(recoveries))
 	for _, recovery := range recoveries {
 		if recovery.Kind != accountdomain.QuotaRecoveryKindFree {
 			continue
@@ -58,10 +59,7 @@ func (s *Service) ResetExpiredBuildQuota(ctx context.Context, now time.Time) (in
 			limit = estimatedFreeTokenLimit
 		}
 		if observed[recovery.AccountID] < limit {
-			if err := s.accounts.ClearQuotaRecovery(ctx, recovery.AccountID); err != nil {
-				s.logger.Error("build_quota_recovery_clear_failed", "account_id", recovery.AccountID, "error", err)
-				continue
-			}
+			restoredIDs = append(restoredIDs, recovery.AccountID)
 			restored++
 			continue
 		}
@@ -71,6 +69,14 @@ func (s *Service) ResetExpiredBuildQuota(ctx context.Context, now time.Time) (in
 		recovery.UpdatedAt = now
 		if err := s.accounts.SaveQuotaRecovery(ctx, recovery); err != nil {
 			s.logger.Error("build_quota_recovery_reschedule_failed", "account_id", recovery.AccountID, "error", err)
+		}
+	}
+	if len(restoredIDs) > 0 {
+		// ResetQuotaState clears the exhausted marker together with the model
+		// quota blocks, so a recovered account is fully routable again.
+		if err := s.accounts.ResetQuotaState(ctx, accountdomain.ProviderBuild, restoredIDs); err != nil {
+			s.logger.Error("build_quota_reset_failed", "account_ids", restoredIDs, "error", err)
+			return 0, err
 		}
 	}
 	return restored, nil

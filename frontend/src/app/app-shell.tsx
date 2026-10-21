@@ -98,8 +98,8 @@ export function AppShell() {
 
   function navigationLinks(mobile = false): ReactNode {
     return navigationSections.map((section) => (
-      <div key={section.label} className={mobile ? "space-y-1" : "space-y-1"}>
-        <p className="px-2 pb-1 text-[10px] font-semibold tracking-[0.08em] text-sidebar-foreground/45">
+      <div key={section.label} className="space-y-1">
+        <p className="px-2 pb-1.5 text-[10px] font-semibold tracking-[0.12em] text-sidebar-foreground/38 uppercase">
           {t(section.label === "workspace" ? "shell.workspace" : "shell.operations")}
         </p>
         {section.items.map(({ href, label, icon: Icon }) => (
@@ -109,20 +109,20 @@ export function AppShell() {
             onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
               cn(
-                "group flex min-w-0 items-center gap-2.5 rounded-md border border-transparent font-medium text-sidebar-foreground/72 transition-[background-color,border-color,color]",
+                "group relative flex min-w-0 items-center gap-2.5 rounded-lg font-medium text-sidebar-foreground/65 transition-[background-color,color]",
                 mobile ? "h-10 px-3 text-sm" : "h-9 px-2.5 text-[13px]",
-                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                isActive && "border-white/8 bg-sidebar-accent text-sidebar-accent-foreground",
+                "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+                isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
               )
             }
           >
             {({ isActive }) => (
               <>
-                <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md transition-colors", isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "bg-white/[0.035] text-sidebar-foreground/72 group-hover:text-sidebar-accent-foreground")}>
-                  <Icon className="size-3.5" strokeWidth={1.9} />
+                {isActive ? <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sidebar-primary" aria-hidden="true" /> : null}
+                <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md transition-colors", isActive ? "bg-sidebar-primary/16 text-sidebar-primary" : "text-sidebar-foreground/55 group-hover:text-sidebar-accent-foreground")}>
+                  <Icon className="size-3.5" strokeWidth={2} />
                 </span>
                 <span className="min-w-0 flex-1 truncate">{t(label)}</span>
-                {isActive ? <ChevronRight className="size-3 text-sidebar-primary" /> : null}
               </>
             )}
           </NavLink>
@@ -132,17 +132,17 @@ export function AppShell() {
   }
 
   const brand = (
-    <Link to="/dashboard" className="flex min-w-0 items-center gap-3" onClick={() => setMobileOpen(false)}>
-      <span className="relative flex size-9 shrink-0 items-center justify-center rounded-md border border-white/12 bg-white/[0.06] text-sidebar-primary">
+    <Link to="/dashboard" className="flex min-w-0 items-center gap-2.5" onClick={() => setMobileOpen(false)}>
+      <span className="relative flex size-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_6px_18px_rgba(139,125,255,0.28)]">
         <span className="font-mono text-[13px] font-bold">G2</span>
-        <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-sidebar bg-success" />
+        <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-sidebar bg-success" />
       </span>
       <span className="min-w-0">
         <span className="flex items-center gap-2">
-          <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-sidebar-accent-foreground">{t("appName")}</span>
+          <span className="truncate text-[14px] font-semibold tracking-[-0.01em] text-sidebar-accent-foreground">{t("appName")}</span>
           <CurrentVersionLabel />
         </span>
-        <span className="block truncate text-[10px] tracking-[0.04em] text-sidebar-foreground/45">Build control plane</span>
+        <span className="block truncate text-[10px] tracking-[0.1em] text-sidebar-foreground/40 uppercase">Build control plane</span>
       </span>
     </Link>
   );

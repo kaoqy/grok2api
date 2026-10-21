@@ -4,6 +4,7 @@ import { Pie, PieChart } from "recharts";
 
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { Spinner } from "@/components/ui/spinner";
+import { ConsoleStat } from "@/components/console/console";
 import type { DashboardDTO } from "@/features/dashboard/dashboard-api";
 import { formatUSD, formatUSDValue } from "@/features/dashboard/dashboard-format";
 import { DashboardPanel } from "@/features/dashboard/dashboard-panel";
@@ -30,38 +31,42 @@ export function DashboardOverview({ dashboard, locale, loading }: DashboardDataP
     : t(hasFirstTokenSamples ? "audits.throughputPending" : "audits.performancePending");
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-panel)]" aria-label={t("dashboard.usage")}>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-        <DashboardMetric
+    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-panel" aria-label={t("dashboard.usage")}>
+      <div className="grid divide-y divide-border/70 sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-4 [&>*]:border-b [&>*]:border-border/70 sm:[&>*]:border-b-0 xl:[&>*]:border-r xl:[&>*]:border-r-0 xl:[&>*:nth-child(4n)]:border-r-0">
+        <ConsoleStat
           icon={UsersRound}
+          tone="info"
           label={t("accounts.buildAccountCount")}
           value={formatNumber(resources?.buildAccounts ?? 0, locale)}
           detail={t("dashboard.availableSummary", { active: formatNumber(resources?.activeBuildAccounts ?? 0, locale), total: formatNumber(resources?.buildAccounts ?? 0, locale) })}
           loading={loading}
         />
-        <DashboardMetric
+        <ConsoleStat
           icon={Activity}
+          tone="primary"
           label={t("dashboard.requests")}
           value={formatNumber(usage?.requests ?? 0, locale)}
           detail={t("dashboard.requestSuccessRate", { rate: formatNumber(usage?.successRate ?? 0, locale, 1) })}
           loading={loading}
         />
-        <DashboardMetric
+        <ConsoleStat
           icon={WholeWord}
+          tone="success"
           label={t("dashboard.tokens")}
           value={formatNumber(usage?.tokens ?? 0, locale)}
           detail={t("dashboard.tokenEfficiency", { rate: formatNumber(cacheHitRate, locale, 1) })}
           loading={loading}
         />
-        <DashboardMetric
+        <ConsoleStat
           icon={CircleDollarSign}
+          tone="warn"
           label={t("dashboard.billing")}
           value={formatUSD(usage?.billedCostUsdTicks ?? 0, locale)}
           detail={t("dashboard.averageRequestCost", { cost: formatUSDValue(averageRequestCost, locale) })}
           loading={loading}
         />
       </div>
-      <div className="border-t border-border bg-secondary/55">
+      <div className="border-t border-border bg-secondary/40">
         <DashboardSecondaryMetric
           icon={Gauge}
           label={t("audits.averageFirstToken")}
@@ -160,21 +165,6 @@ export function DashboardResources({ dashboard, locale, loading }: DashboardData
         </div>
       )}
     </DashboardPanel>
-  );
-}
-
-function DashboardMetric({ icon: Icon, label, value, detail, loading }: { icon: LucideIcon; label: string; value: string; detail: string; loading: boolean }) {
-  return (
-    <article className="group min-h-[126px] border-b border-border px-5 py-4 transition-colors even:bg-secondary/20 hover:bg-secondary/35 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:[&:nth-child(2n)]:border-r xl:[&:nth-child(4n)]:border-r-0" aria-busy={loading}>
-      <header className="flex min-h-5 items-center justify-between gap-3">
-        <span className="text-xs font-semibold text-muted-foreground">{label}</span>
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-secondary text-muted-foreground transition-colors group-hover:border-primary/20 group-hover:bg-accent group-hover:text-primary">
-          <Icon className="size-3.5" />
-        </span>
-      </header>
-      <div className="mt-3 flex min-h-9 items-center text-[28px] font-bold leading-9 tracking-normal tabular-nums">{loading ? <Spinner /> : value}</div>
-      <p className={cn("mt-1 min-h-4 truncate text-[11px] text-muted-foreground", loading && "invisible")} title={detail}>{detail}</p>
-    </article>
   );
 }
 

@@ -12,7 +12,7 @@ import (
 type buildQuotaResetRepository struct {
 	repository.AccountRepository
 	recoveries    map[uint64]accountdomain.QuotaRecovery
-	cleared       []uint64
+	resetIDs      []uint64
 	savedRecovery []accountdomain.QuotaRecovery
 }
 
@@ -33,9 +33,11 @@ func (r *buildQuotaResetRepository) ListDueQuotaRecoveries(_ context.Context, pr
 	return values, nil
 }
 
-func (r *buildQuotaResetRepository) ClearQuotaRecovery(_ context.Context, accountID uint64) error {
-	r.cleared = append(r.cleared, accountID)
-	delete(r.recoveries, accountID)
+func (r *buildQuotaResetRepository) ResetQuotaState(_ context.Context, _ accountdomain.Provider, accountIDs []uint64) error {
+	r.resetIDs = append(r.resetIDs, accountIDs...)
+	for _, id := range accountIDs {
+		delete(r.recoveries, id)
+	}
 	return nil
 }
 
@@ -74,8 +76,8 @@ func TestResetExpiredBuildQuotaRestoresRecoveredAccount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResetExpiredBuildQuota error: %v", err)
 	}
-	if restored != 1 || len(repo.cleared) != 1 || repo.cleared[0] != 11 {
-		t.Fatalf("restored = %d, cleared = %v", restored, repo.cleared)
+	if restored != 1 || len(repo.resetIDs) != 1 || repo.resetIDs[0] != 11 {
+		t.Fatalf("restored = %d, reset = %v", restored, repo.resetIDs)
 	}
 }
 
@@ -95,8 +97,8 @@ func TestResetExpiredBuildQuotaKeepsAccountStillExhausted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResetExpiredBuildQuota error: %v", err)
 	}
-	if restored != 0 || len(repo.cleared) != 0 {
-		t.Fatalf("restored = %d, cleared = %v", restored, repo.cleared)
+	if restored != 0 || len(repo.resetIDs) != 0 {
+		t.Fatalf("restored = %d, reset = %v", restored, repo.resetIDs)
 	}
 	if len(repo.savedRecovery) != 1 {
 		t.Fatalf("saved recovery count = %d, want 1", len(repo.savedRecovery))
@@ -120,7 +122,7 @@ func TestResetExpiredBuildQuotaIgnoresPaidRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResetExpiredBuildQuota error: %v", err)
 	}
-	if restored != 0 || len(repo.cleared) != 0 {
-		t.Fatalf("restored = %d, cleared = %v", restored, repo.cleared)
+	if restored != 0 || len(repo.resetIDs) != 0 {
+		t.Fatalf("restored = %d, reset = %v", restored, repo.resetIDs)
 	}
 }

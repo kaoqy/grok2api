@@ -4,102 +4,106 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Control-plane visual system:
- * mineral canvas, graphite typography, teal operational accent, coral risk
- * signal, restrained 8px geometry and a persistent dark navigation rail.
+ * Obsidian control plane.
+ *
+ * A cool graphite substrate carries the whole product so the interface reads
+ * as one machined surface instead of a collection of cards. Colour is spent
+ * deliberately: one indigo accent carries interaction, the cyan/mint/amber
+ * family carries data, and red is reserved for loss.
  */
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
-  --background: #f2f5f1;
-  --foreground: #17211f;
+  --background: #f4f5f7;
+  --foreground: #12141a;
 
-  --card: #fbfcf9;
-  --card-foreground: #17211f;
+  --card: #ffffff;
+  --card-foreground: #12141a;
   --popover: #ffffff;
-  --popover-foreground: #17211f;
+  --popover-foreground: #12141a;
 
-  --primary: #0c6b5f;
-  --primary-foreground: #f7fffd;
+  --primary: #5a49e8;
+  --primary-foreground: #f7f6ff;
 
-  --secondary: #e4eae5;
-  --secondary-foreground: #20302c;
-  --muted: #e4eae5;
-  --muted-foreground: #5b6862;
-  --accent: #d9ebe5;
-  --accent-foreground: #0a5b51;
+  --secondary: #e8e9ee;
+  --secondary-foreground: #1b1e26;
+  --muted: #eeeff3;
+  --muted-foreground: #626776;
+  --accent: #e6e4ff;
+  --accent-foreground: #4636d6;
 
-  --destructive: #c44e3f;
-  --border: #cbd6cf;
-  --input: #b7c6be;
-  --ring: #0c6b5f;
+  --destructive: #d13438;
+  --border: #dcdee5;
+  --input: #c3c6d0;
+  --ring: #5a49e8;
 
-  --sidebar: #14201d;
-  --sidebar-foreground: #aebdb7;
-  --sidebar-primary: #55c8b7;
-  --sidebar-primary-foreground: #11211d;
-  --sidebar-accent: #22312d;
-  --sidebar-accent-foreground: #f0f7f4;
-  --sidebar-border: #2c403a;
+  --sidebar: #15171d;
+  --sidebar-foreground: #9a9dad;
+  --sidebar-primary: #8b7dff;
+  --sidebar-primary-foreground: #14121f;
+  --sidebar-accent: #1e2029;
+  --sidebar-accent-foreground: #f2f2f7;
+  --sidebar-border: #262933;
 
-  /* 语义色 */
-  --success: #2f7d4f;
-  --warn: #a66508;
-  --think: #765b98;
+  /* 语义色：成功 / 警告 / 推理 */
+  --success: #16855a;
+  --warn: #b26a00;
+  --think: #6d4fd0;
 
-  --quota-product-0: #75817c;
-  --quota-product-1: #3d73a8;
-  --quota-product-2: #2f7d4f;
-  --quota-product-3: #a66508;
-  --quota-product-4: #765b98;
-  --quota-product-5: #5969a1;
-  --quota-product-6: #c44e3f;
+  /* 数据色板：额度、产品与风险分类共用 */
+  --quota-product-0: #6b7280;
+  --quota-product-1: #3f6fd8;
+  --quota-product-2: #16855a;
+  --quota-product-3: #b26a00;
+  --quota-product-4: #6d4fd0;
+  --quota-product-5: #1a8fa3;
+  --quota-product-6: #d13438;
 }
 
 .dark {
-  --background: #101715;
-  --foreground: #e6efeb;
+  --background: #0b0d11;
+  --foreground: #e8eaf0;
 
-  --card: #17211e;
-  --card-foreground: #e6efeb;
-  --popover: #1b2724;
-  --popover-foreground: #e6efeb;
+  --card: #12151b;
+  --card-foreground: #e8eaf0;
+  --popover: #15181f;
+  --popover-foreground: #e8eaf0;
 
-  --primary: #5dd2c0;
-  --primary-foreground: #0c1a17;
+  --primary: #8b7dff;
+  --primary-foreground: #15122a;
 
-  --secondary: #22312c;
-  --secondary-foreground: #e6efeb;
-  --muted: #22312c;
-  --muted-foreground: #9bafa7;
-  --accent: #263b35;
-  --accent-foreground: #a6eee2;
+  --secondary: #1b1e26;
+  --secondary-foreground: #e8eaf0;
+  --muted: #1b1e26;
+  --muted-foreground: #8f95a6;
+  --accent: #221f3d;
+  --accent-foreground: #c3bcff;
 
-  --destructive: #e47b6c;
-  --border: #30443d;
-  --input: #405a50;
-  --ring: #5dd2c0;
+  --destructive: #f2686b;
+  --border: #232733;
+  --input: #333846;
+  --ring: #8b7dff;
 
-  --sidebar: #0d1513;
-  --sidebar-foreground: #9fb3ab;
-  --sidebar-primary: #5dd2c0;
-  --sidebar-primary-foreground: #0c1a17;
-  --sidebar-accent: #1a2a25;
-  --sidebar-accent-foreground: #eff8f4;
-  --sidebar-border: #293d36;
+  --sidebar: #0d0f14;
+  --sidebar-foreground: #8b91a2;
+  --sidebar-primary: #8b7dff;
+  --sidebar-primary-foreground: #15122a;
+  --sidebar-accent: #181b23;
+  --sidebar-accent-foreground: #f0f1f6;
+  --sidebar-border: #20242e;
 
-  --success: #83c79c;
-  --warn: #ddb05c;
-  --think: #bca2d6;
+  --success: #4ecb92;
+  --warn: #e0a24a;
+  --think: #b49bf0;
 
-  --quota-product-0: #9bafa7;
-  --quota-product-1: #82b1df;
-  --quota-product-2: #83c79c;
-  --quota-product-3: #ddb05c;
-  --quota-product-4: #bca2d6;
-  --quota-product-5: #94a3dd;
-  --quota-product-6: #e47b6c;
+  --quota-product-0: #8b91a2;
+  --quota-product-1: #6f9bf0;
+  --quota-product-2: #4ecb92;
+  --quota-product-3: #e0a24a;
+  --quota-product-4: #b49bf0;
+  --quota-product-5: #45c2d6;
+  --quota-product-6: #f2686b;
 }
 
 @theme inline {
@@ -139,14 +143,14 @@
   --color-quota-product-5: var(--quota-product-5);
   --color-quota-product-6: var(--quota-product-6);
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
 
-  --shadow-panel: 0 1px 1px rgb(13 29 24 / 0.04), 0 8px 22px rgb(13 29 24 / 0.035);
-  --shadow-float: 0 2px 5px rgb(13 29 24 / 0.08), 0 18px 40px rgb(13 29 24 / 0.12);
+  --shadow-panel: 0 1px 2px rgb(10 12 18 / 0.05), 0 12px 28px rgb(10 12 18 / 0.05);
+  --shadow-float: 0 2px 6px rgb(10 12 18 / 0.09), 0 20px 48px rgb(10 12 18 / 0.14);
 }
 
 * {
@@ -199,7 +203,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: "Aptos", "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", "Aptos", "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   letter-spacing: 0;
@@ -207,18 +211,23 @@ body {
   font-feature-settings: "ss01" 1, "cv02" 1;
 }
 
+/* 画布：中心微光 + 极淡网格，给出仪表盘的纵深而不是装饰。 */
 .app-canvas {
   background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--border) 24%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--border) 18%, transparent) 1px, transparent 1px);
-  background-size: 64px 64px;
-  background-position: -1px -1px;
+    radial-gradient(120% 80% at 50% -10%, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 62%),
+    linear-gradient(to right, color-mix(in oklab, var(--border) 30%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 22%, transparent) 1px, transparent 1px);
+  background-size: 100% 100%, 72px 72px, 72px 72px;
+  background-position: 0 0, -1px -1px, -1px -1px;
 }
 
 .dark .app-canvas {
   background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--border) 28%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--border) 22%, transparent) 1px, transparent 1px);
+    radial-gradient(120% 80% at 50% -10%, color-mix(in oklab, var(--primary) 14%, transparent) 0%, transparent 60%),
+    linear-gradient(to right, color-mix(in oklab, var(--border) 34%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 26%, transparent) 1px, transparent 1px);
+  background-size: 100% 100%, 72px 72px, 72px 72px;
+  background-position: 0 0, -1px -1px, -1px -1px;
 }
 
 h1,

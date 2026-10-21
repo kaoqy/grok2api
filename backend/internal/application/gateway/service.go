@@ -1177,6 +1177,17 @@ func (s *Service) createResponseAt(ctx context.Context, input Input, path string
 		response.Body = &firstByteReadCloser{ReadCloser: response.Body, mark: timing.markFirstBody}
 		recordStreamFailure := func(diagnostic StreamFailureDiagnostic) {
 			failureAttempts.captureStreamFailure(credential, upstreamStartedAt, response, diagnostic)
+			// A Build account whose free token window ran out mid-generation only
+			// shows up here: the response already started, so the HTTP 429
+			// classification never runs. Take the account out of the pool right
+			// away so the next request switches to another account instead of
+			// repeating the same upstream failure.
+			if used, limit, exhausted := freeQuotaExhaustionSignal(diagnostic.Body); exhausted {
+				writeCtx, writeCancel := context.WithTimeout(context.WithoutCancel(ctx), finalizationTimeout)
+				s.selector.MarkFreeQuotaExhausted(writeCtx, credential, used, limit)
+				writeCancel()
+				s.logger.Warn("upstream_free_quota_exhausted_in_stream", "request_id", input.RequestID, "account_id", credential.ID, "used", used, "limit", limit)
+			}
 		}
 		var markFirstToken func()
 		if firstToken != nil {

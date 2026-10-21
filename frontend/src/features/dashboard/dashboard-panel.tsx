@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { ConsolePanel } from "@/components/console/console";
 import { cn } from "@/shared/lib/cn";
 
 type DashboardPanelProps = {
@@ -13,12 +14,14 @@ type DashboardPanelProps = {
 
 export function DashboardPanel({ id, title, actions, children, className, contentClassName }: DashboardPanelProps) {
   return (
-    <section className={cn("min-w-0 rounded-lg border bg-card px-5 py-[18px] shadow-panel", className)} aria-labelledby={id}>
-      <header className="flex min-h-7 items-center justify-between gap-3">
-        <h2 id={id} className="text-[13px] font-semibold text-foreground">{title}</h2>
-        {actions ? <div className="shrink-0">{actions}</div> : null}
-      </header>
-      <div className={cn("mt-4 min-w-0", contentClassName)}>{children}</div>
-    </section>
+    <ConsolePanel
+      className={className}
+      labelledBy={id}
+      title={<span id={id}>{title}</span>}
+      actions={actions}
+      bodyClassName={cn("min-w-0", contentClassName)}
+    >
+      {children}
+    </ConsolePanel>
   );
 }
