@@ -2,7 +2,6 @@ package account
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -62,27 +61,27 @@ func TestAutoCleanReauthRespectsMinAgeAndIncludeDisabled(t *testing.T) {
 	assertPresent(t, repo, fresh.ID)
 	assertPresent(t, repo, disabledAged.ID)
 
-	// Enabled without include-disabled: only aged enabled reauth is deleted.
+	// Enabled without include-disabled: only aged enabled reauth is disabled.
 	service.UpdateAutoCleanConfig(AutoCleanConfig{
 		Enabled: true, Interval: 10 * time.Minute, MinAge: time.Hour, IncludeDisabled: false,
 	})
 	if err := service.runAutoCleanReauth(ctx, service.autoCleanConfig()); err != nil {
 		t.Fatal(err)
 	}
-	assertMissing(t, repo, aged.ID)
+	assertDisabled(t, repo, aged.ID)
 	assertPresent(t, repo, fresh.ID)
 	assertPresent(t, repo, activePermanent.ID)
 	assertPresent(t, repo, cooldown.ID)
 	assertPresent(t, repo, disabledAged.ID)
 
-	// Include disabled: aged disabled reauth is deleted; fresh remains.
+	// Include disabled: aged disabled reauth stays disabled; fresh remains.
 	service.UpdateAutoCleanConfig(AutoCleanConfig{
 		Enabled: true, Interval: 10 * time.Minute, MinAge: time.Hour, IncludeDisabled: true,
 	})
 	if err := service.runAutoCleanReauth(ctx, service.autoCleanConfig()); err != nil {
 		t.Fatal(err)
 	}
-	assertMissing(t, repo, disabledAged.ID)
+	assertDisabled(t, repo, disabledAged.ID)
 	assertPresent(t, repo, fresh.ID)
 	assertPresent(t, repo, activePermanent.ID)
 	assertPresent(t, repo, cooldown.ID)
@@ -92,7 +91,7 @@ func TestAutoCleanReauthRespectsMinAgeAndIncludeDisabled(t *testing.T) {
 	if err := service.runAutoCleanReauth(ctx, service.autoCleanConfig()); err != nil {
 		t.Fatal(err)
 	}
-	assertMissing(t, repo, fresh.ID)
+	assertDisabled(t, repo, fresh.ID)
 	assertPresent(t, repo, activePermanent.ID)
 	assertPresent(t, repo, cooldown.ID)
 }
@@ -153,21 +152,27 @@ func TestAutoCleanReauthMultiBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deleted, err := repo.DeleteAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, candidates)
+	disabled, err := repo.DisableAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, candidates)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(candidates) != 100 || len(deleted) != 100 || candidates[len(candidates)-1] == 0 {
-		t.Fatalf("first batch candidates=%d deleted=%d nextAfter=%d", len(candidates), len(deleted), candidates[len(candidates)-1])
+	if len(candidates) != 100 || len(disabled) != 100 || candidates[len(candidates)-1] == 0 {
+		t.Fatalf("first batch candidates=%d disabled=%d nextAfter=%d", len(candidates), len(disabled), candidates[len(candidates)-1])
 	}
-	remaining := 0
+	// 账号只是被停用，一个都不会被移除。
+	present := 0
+	disabledCount := 0
 	for _, id := range ids {
-		if _, getErr := repo.Get(ctx, id); getErr == nil {
-			remaining++
+		value, getErr := repo.Get(ctx, id)
+		if getErr == nil {
+			present++
+			if !value.Enabled {
+				disabledCount++
+			}
 		}
 	}
-	if remaining != 5 {
-		t.Fatalf("remaining after first batch = %d", remaining)
+	if present != total || disabledCount != 100 {
+		t.Fatalf("after first batch present=%d disabled=%d", present, disabledCount)
 	}
 
 	// 应用层应扫完全部剩余。
@@ -178,7 +183,7 @@ func TestAutoCleanReauthMultiBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range ids {
-		assertMissing(t, repo, id)
+		assertDisabled(t, repo, id)
 	}
 }
 
@@ -275,12 +280,16 @@ func mustUpsert(t *testing.T, repo *relational.AccountRepository, value accountd
 	return out
 }
 
-func assertMissing(t *testing.T, repo *relational.AccountRepository, id uint64) {
+// assertDisabled 检查账号仍留在库里，但已经被停用。
+// 停用不是移除：额度刷新成功后账号可以重新启用。
+func assertDisabled(t *testing.T, repo *relational.AccountRepository, id uint64) {
 	t.Helper()
-	if _, err := repo.Get(context.Background(), id); err == nil {
-		t.Fatalf("account %d still present", id)
-	} else if !errors.Is(err, repository.ErrNotFound) {
-		t.Fatalf("account %d get error: %v", id, err)
+	value, err := repo.Get(context.Background(), id)
+	if err != nil {
+		t.Fatalf("account %d should remain: %v", id, err)
+	}
+	if value.Enabled {
+		t.Fatalf("account %d should be disabled", id)
 	}
 }
 
@@ -355,7 +364,7 @@ func TestAutoCleanSkipsActiveInferenceLease(t *testing.T) {
 	if err := service.runAutoCleanReauth(ctx, service.autoCleanConfig()); err != nil {
 		t.Fatal(err)
 	}
-	assertMissing(t, repo, value.ID)
+	assertDisabled(t, repo, value.ID)
 }
 
 func TestAutoCleanConfigRevisionRejectsOldTimerAndUnchangedUpdateDoesNotWake(t *testing.T) {
@@ -418,7 +427,7 @@ func (r *endlessAutoCleanRepository) ListAutoCleanReauthCandidates(_ context.Con
 	return ids, nil
 }
 
-func (r *endlessAutoCleanRepository) DeleteAutoCleanReauthCandidates(_ context.Context, _ time.Time, _ bool, ids []uint64) ([]uint64, error) {
+func (r *endlessAutoCleanRepository) DisableAutoCleanReauthCandidates(_ context.Context, _ time.Time, _ bool, ids []uint64) ([]uint64, error) {
 	r.deleteCalls++
 	r.deletedIDs = append(r.deletedIDs, ids...)
 	return append([]uint64(nil), ids...), nil

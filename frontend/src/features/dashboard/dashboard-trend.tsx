@@ -39,15 +39,15 @@ export function DashboardTrend({ dashboard, locale, loading }: DashboardTrendPro
   const chartConfig = useMemo<ChartConfig>(() => ({
     tokens: {
       label: t("dashboard.trendTokens"),
-      theme: { light: "oklch(0.68 0.15 245)", dark: "oklch(0.74 0.13 245)" },
+      theme: { light: "oklch(0.45 0 0)", dark: "oklch(0.8 0 0)" },
     },
     billing: {
       label: t("dashboard.billing"),
-      theme: { light: "oklch(0.7 0.11 160)", dark: "oklch(0.73 0.1 160)" },
+      theme: { light: "oklch(0.25 0 0)", dark: "oklch(0.62 0 0)" },
     },
     requests: {
       label: t("dashboard.trendRequests"),
-      theme: { light: "oklch(0.76 0.06 245)", dark: "oklch(0.56 0.07 245)" },
+      theme: { light: "oklch(0.72 0 0)", dark: "oklch(0.42 0 0)" },
     },
   }), [t]);
   const hasData = dashboard?.series.some((bucket) => bucket.requests > 0 || bucket.tokens > 0 || bucket.billedCostUsdTicks > 0) ?? false;

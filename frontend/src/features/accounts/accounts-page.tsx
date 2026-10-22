@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowRight, ClipboardPaste, Compass, Download, ExternalLink, FileUp, Link, MoreHorizontal, Pencil, Plus, RefreshCw, RotateCw, Search, ShieldAlert, SquareTerminal, TimerOff, Trash2, TriangleAlert, Webhook } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Activity, ArrowRight, ChevronDown, ChevronRight, ClipboardPaste, Compass, Download, ExternalLink, FileUp, Link, MoreHorizontal, Network, Pencil, Plus, RefreshCw, RotateCw, Search, ShieldAlert, SquareTerminal, TimerOff, Trash2, TriangleAlert, Webhook } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -36,12 +36,10 @@ import { formatDateTime, formatNumber } from "@/shared/lib/format";
 import { nextTableSort, type SortOrder, type TableSort } from "@/shared/lib/table-sort";
 import {
   acceptWebAccountTerms,
-  cleanupAccounts,
   clearAccountCooldown,
   deleteAccount,
   deleteAccounts,
   previewAccountDeletion,
-  previewCleanup,
   enableWebAccountNSFW,
   convertWebAccountsToBuild,
   detectBuildAccounts,
@@ -72,9 +70,7 @@ import {
   updateAccountsEnabled,
   updateAccountsMaxConcurrent,
   type AccountDTO,
-  type AccountCleanupStatus,
   type AccountProvider,
-  type CleanupPreviewDTO,
   type AccountUpdateInput,
   type BuildRouteMode,
   type AccountTaskProgressDTO,
@@ -93,6 +89,73 @@ import { AccountEgressCell } from "@/features/accounts/account-egress-cell";
 import { WebAccountScriptsDialog } from "@/features/accounts/web-account-scripts";
 import { WebAccountSettingsDialogs, WebAccountSettingsMenu, type WebAccountConfirmationTarget } from "@/features/accounts/web-account-settings";
 import { assignEgressAccounts, listAllEgressNodes, listEgressNodes, listEgressSources, unassignEgressAccounts, type EgressNodeDTO, type EgressScope } from "@/features/settings/settings-api";
+
+type EgressGroup = {
+  key: string;
+  label: string;
+  proxyDisplay?: string;
+  filterValue?: string;
+  accounts: AccountDTO[];
+};
+
+// AccountRows 渲染账号列表：分组模式下先按 SOCKS 出口给出分组表头，
+// 再在每个分组下展开账号；普通模式沿用虚拟滚动。
+function AccountRows({
+  grouped,
+  groups,
+  collapsedKeys,
+  colSpan,
+  onToggleGroup,
+  onFilterGroup,
+  items,
+  rowHeight,
+  renderRow,
+}: {
+  grouped: boolean;
+  groups: EgressGroup[];
+  collapsedKeys: Set<string>;
+  colSpan: number;
+  onToggleGroup: (key: string) => void;
+  onFilterGroup: (value: string, label: string) => void;
+  items: AccountDTO[];
+  rowHeight: number;
+  renderRow: (account: AccountDTO) => ReactNode;
+}) {
+  const { t } = useTranslation();
+  if (!grouped) {
+    return <VirtualTableBody items={items} colSpan={colSpan} rowHeight={rowHeight} renderRow={renderRow} />;
+  }
+  return (
+    <TableBody>
+      {groups.map((group) => {
+        const collapsed = collapsedKeys.has(group.key);
+        return (
+          <Fragment key={group.key}>
+            <TableRow className="bg-muted hover:bg-muted">
+              <TableCell colSpan={colSpan} className="px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="ghost" size="icon" className="size-6" onClick={() => onToggleGroup(group.key)} aria-label={group.label}>
+                    {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                  </Button>
+                  <Network className="size-3.5 shrink-0" />
+                  <span className="text-xs font-bold uppercase tracking-wide">{group.label}</span>
+                  {group.proxyDisplay ? <span className="max-w-[22rem] truncate font-mono text-[11px] text-muted-foreground">{group.proxyDisplay}</span> : null}
+                  <Badge variant="secondary" className="tabular-nums">{group.accounts.length}</Badge>
+                  {group.filterValue ? (
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => onFilterGroup(group.filterValue as string, group.label)}>
+                      {t("accounts.egressOnlyFilter")}
+                    </Button>
+                  ) : null}
+                </div>
+              </TableCell>
+            </TableRow>
+            {collapsed ? null : group.accounts.map((account) => renderRow(account))}
+          </Fragment>
+        );
+      })}
+    </TableBody>
+  );
+}
 
 function isAbortError(error: unknown): boolean {
   return (error instanceof DOMException || error instanceof Error) && error.name === "AbortError";
@@ -141,7 +204,7 @@ export function AccountsPage() {
   const [riskFilter, setRiskFilter] = useState("");
   const [agreementFilter, setAgreementFilter] = useState("");
   const [associationFilter, setAssociationFilter] = useState("");
-  const [sort, setSort] = useState<TableSort>({ field: "createdAt", order: "desc" });
+  const [sort, setSort] = useState<TableSort>({ field: "egress", order: "asc" });
   const [selection, setSelection] = useState<AccountSelection>(() => ({ provider: "grok_build", ids: new Set() }));
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [batchConcurrencyOpen, setBatchConcurrencyOpen] = useState(false);
@@ -151,14 +214,9 @@ export function AccountsPage() {
   const [egressConfigurationOpen, setEgressConfigurationOpen] = useState(false);
   const [egressConfigurationTask, setEgressConfigurationTask] = useState<EgressConfigurationTask>("bind");
   const [egressNodeID, setEgressNodeID] = useState("");
-  const [cleanupOpen, setCleanupOpen] = useState(false);
-  const [cleanupStatuses, setCleanupStatuses] = useState<Set<AccountCleanupStatus>>(() => new Set());
-  // Cleanup preview + optional linked deletion (independent from the delete dialogs' state).
-  const [cleanupLinkedTargets, setCleanupLinkedTargets] = useState<AccountProvider[]>([]);
-  // Keyed preview: a stale result stays mounted while the next one loads, so the
-  // dialog never reflows between "has counts" and "no counts".
-  const [cleanupPreview, setCleanupPreview] = useState<{ key: string; data: CleanupPreviewDTO } | null>(null);
-  const [cleanupPreviewError, setCleanupPreviewError] = useState(false);
+  // 账号列表默认按绑定的 SOCKS 出口分组；折叠状态按分组 key 记忆。
+  const [groupByEgress, setGroupByEgress] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   const [exportOpen, setExportOpen] = useState(false);
   const [exportLimit, setExportLimit] = useState("1000");
   const [exportCursor, setExportCursor] = useState("0");
@@ -893,83 +951,6 @@ export function AccountsPage() {
     onError: showError,
   });
 
-  const resetCleanupState = () => {
-    setCleanupStatuses(new Set());
-    setCleanupLinkedTargets([]);
-    setCleanupPreview(null);
-    setCleanupPreviewError(false);
-  };
-
-  // Toggles never drop the previous preview: freshness is derived from the key below.
-  const toggleCleanupTarget = (target: AccountProvider, checked: boolean) => {
-    setCleanupLinkedTargets((current) => checked ? (current.includes(target) ? current : [...current, target]) : current.filter((item) => item !== target));
-    setCleanupPreviewError(false);
-  };
-
-  const selectAllCleanupTargets = () => {
-    const options = linkedTargetOptions(provider);
-    const allSelected = options.every((item) => cleanupLinkedTargets.includes(item));
-    setCleanupLinkedTargets(allSelected ? [] : options);
-    setCleanupPreviewError(false);
-  };
-
-  const cleanupMutation = useMutation({
-    // Snapshot statuses/targets at click; dialog close/reset must not mutate an in-flight request.
-    mutationFn: (input: { statuses: AccountCleanupStatus[]; targets: AccountProvider[] }) =>
-      cleanupAccounts(provider, input.statuses, input.targets),
-    onSuccess: (result) => {
-      setCleanupOpen(false);
-      resetCleanupState();
-      invalidateAccountData();
-      const linked = result.linkedDeleted ?? 0;
-      const skipped = result.skipped ?? 0;
-      if (linked > 0 || skipped > 0) {
-        toast.success(t("accounts.cleanupCompletedDetailed", { deleted: result.deleted, linked, skipped }));
-      } else {
-        toast.success(t("accounts.cleanupCompleted", { deleted: result.deleted }));
-      }
-    },
-    onError: showError,
-  });
-
-  // Debounced cleanup preview: counts refresh whenever statuses/targets change.
-  // setState only inside timeout/promise callbacks (react-hooks/set-state-in-effect).
-  const cleanupStatusesKey = [...cleanupStatuses].sort().join(",");
-  const cleanupTargetsKey = [...cleanupLinkedTargets].sort().join(",");
-  const cleanupPreviewKey = `${provider}|${cleanupStatusesKey}|${cleanupTargetsKey}`;
-  // Fresh = the loaded preview matches the current selection; otherwise show spinners
-  // in the fixed-size count slots and keep the confirm button disabled.
-  const cleanupPreviewFresh = !cleanupPreviewError && cleanupPreview?.key === cleanupPreviewKey;
-  const cleanupPreviewTotals = cleanupPreviewFresh ? cleanupPreview?.data ?? null : null;
-  useEffect(() => {
-    if (!cleanupOpen || cleanupStatusesKey === "") return;
-    let cancelled = false;
-    const previewKey = `${provider}|${cleanupStatusesKey}|${cleanupTargetsKey}`;
-    const statuses = cleanupStatusesKey.split(",") as AccountCleanupStatus[];
-    // Defense in depth: never send a target that is invalid for the current pool.
-    const allowed = linkedTargetOptions(provider);
-    const targets = (cleanupTargetsKey ? (cleanupTargetsKey.split(",") as AccountProvider[]) : []).filter((target) => allowed.includes(target));
-    const timer = window.setTimeout(() => {
-      void previewCleanup(provider, statuses, targets)
-        .then((preview) => {
-          if (cancelled) return;
-          setCleanupPreviewError(false);
-          setCleanupPreview({ key: previewKey, data: preview });
-        })
-        .catch(() => {
-          if (cancelled) return;
-          // No fake zeros: destructive scope must never be understated.
-          setCleanupPreview(null);
-          setCleanupPreviewError(true);
-          toast.error(t("accounts.cleanupPreviewFailed"));
-        });
-    }, 300);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [cleanupOpen, cleanupStatusesKey, cleanupTargetsKey, provider, t]);
-
   useEffect(() => {
     if (!deviceOpen || !deviceSession || deviceStatus !== "pending") {
       return;
@@ -1029,13 +1010,6 @@ export function AccountsPage() {
     setAssociationFilter("");
     setQuickImportOpen(false);
     setQuickImportTokens("");
-    // Cleanup dialog state is provider-scoped: linked targets from another pool
-    // would be rejected by the API (self-target 400) once the dialog reopens.
-    setCleanupOpen(false);
-    setCleanupStatuses(new Set());
-    setCleanupLinkedTargets([]);
-    setCleanupPreview(null);
-    setCleanupPreviewError(false);
   }
 
   function submitQuickImport(): void {
@@ -1130,6 +1104,36 @@ export function AccountsPage() {
 
   const result = accountsQuery.data;
   const pageIDs = result?.items.map((account) => account.id) ?? [];
+  const tableColSpan = provider === "grok_build" ? 9 : 8;
+  // 账号按绑定的 SOCKS 出口聚类：同一出口的账号在表头下排成一块，
+  // 这样一眼就能看出哪个代理承担了多少账号。
+  const egressGroups = useMemo<EgressGroup[]>(() => {
+    const groups = new Map<string, EgressGroup>();
+    for (const account of result?.items ?? []) {
+      const node = account.egressNodeId ? egressNodeById.get(account.egressNodeId) : undefined;
+      const auto = !account.egressNodeId && account.egressAssignmentMode === "auto";
+      const key = account.egressNodeId ?? (auto ? "__auto__" : "__unbound__");
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          key,
+          label: node?.name ?? (auto ? t("accounts.egressAuto") : t("accounts.egressUnbound")),
+          proxyDisplay: node?.proxyDisplay,
+          filterValue: account.egressNodeId ? `node:${account.egressNodeId}` : auto ? undefined : "unbound",
+          accounts: [],
+        };
+        groups.set(key, group);
+      }
+      group.accounts.push(account);
+    }
+    return Array.from(groups.values()).sort((left, right) => {
+      const leftNamed = left.filterValue?.startsWith("node:") ?? false;
+      const rightNamed = right.filterValue?.startsWith("node:") ?? false;
+      if (leftNamed !== rightNamed) return leftNamed ? -1 : 1;
+      if (!leftNamed) return left.key.localeCompare(right.key);
+      return left.label.localeCompare(right.label);
+    });
+  }, [result?.items, egressNodeById, t]);
   const selectedOnPage = pageIDs.filter((id) => selected.has(id));
   const allPageSelected = pageIDs.length > 0 && selectedOnPage.length === pageIDs.length;
 
@@ -1177,6 +1181,34 @@ export function AccountsPage() {
 
   function changeSort(field: string, initialOrder: SortOrder): void {
     setSort((current) => nextTableSort(current, field, initialOrder));
+    // 出口列是分组视图的排序依据，选中它时自动切回分组展示。
+    setGroupByEgress(field === "egress");
+    setPage(1);
+  }
+
+  function toggleEgressGrouping(): void {
+    if (groupByEgress) {
+      setGroupByEgress(false);
+      setSort({ field: "createdAt", order: "desc" });
+    } else {
+      setGroupByEgress(true);
+      setSort({ field: "egress", order: "asc" });
+    }
+    setPage(1);
+  }
+
+  function toggleEgressGroup(key: string): void {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function filterByEgressGroup(value: string, label: string): void {
+    setEgressFilter(value);
+    setEgressFilterSelectedLabel(label);
     setPage(1);
   }
 
@@ -1286,7 +1318,6 @@ export function AccountsPage() {
     || batchDeleteMutation.isPending
     || bindEgressMutation.isPending
     || unbindEgressMutation.isPending
-    || cleanupMutation.isPending
     || webConfirmationMutation.isPending
     || webAccountScriptsMutation.isPending;
 
@@ -1301,7 +1332,7 @@ export function AccountsPage() {
           <p className="mt-0.5 text-[13px] text-muted-foreground">{t("accounts.description")}</p>
         </div>
       </header>
-      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AccountMetricPanel tone="text-quota-product-1" icon={provider === "grok_web" ? <Compass /> : <SquareTerminal />} loading={summaryLoading} label={providerAccountCountLabel} value={summaryUnavailable ? "-" : formatNumber(providerSummary.total, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(providerSummary.available, i18n.language, 0) })} />
         <AccountMetricPanel tone="text-success" icon={<Activity />} loading={summaryLoading} label={t("dashboard.activeAccounts")} value={summaryUnavailable ? "-" : formatNumber(providerSummary.available, i18n.language, 0)} detail={t("accounts.routableAccountCount", { count: formatNumber(providerSummary.available, i18n.language, 0) })} />
         <AccountMetricPanel
@@ -1331,6 +1362,10 @@ export function AccountsPage() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          <div className="flex flex-wrap items-center gap-2">
+          <Button variant={groupByEgress ? "default" : "outline"} size="sm" aria-pressed={groupByEgress} onClick={toggleEgressGrouping}>
+            <Network />{t("accounts.groupByEgress")}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button size="sm"><Plus />{t("accounts.connectAccount")}</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -1345,6 +1380,7 @@ export function AccountsPage() {
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
         <input
           ref={fileInputRef}
@@ -1469,7 +1505,6 @@ export function AccountsPage() {
                 {hasProviderAccounts && provider === "grok_build" ? <Button variant="secondary" size="sm" disabled={bulkTaskPending} onClick={() => openDetectDialog("all")}>{t("accountCredential.detectAction")}</Button> : null}
                 {hasProviderAccounts ? <Button variant="secondary" size="sm" disabled={bulkTaskPending} onClick={() => { setAllQuotaTask("sync"); setSyncAllOpen(true); }}>{t("accountCredential.quotaSyncAction")}</Button> : null}
                 {hasProviderAccounts && provider === "grok_build" ? <Button variant="secondary" size="sm" disabled={bulkTaskPending} onClick={() => setRenewAllOpen(true)}>{t("accountCredential.refreshAction")}</Button> : null}
-                {hasProviderAccounts ? <Button variant="secondary" size="sm" className="bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive" disabled={bulkTaskPending} onClick={() => { resetCleanupState(); setCleanupOpen(true); }}><Trash2 />{t("accounts.cleanupAction")}</Button> : null}
               </div>
             )}
           </>
@@ -1497,18 +1532,23 @@ export function AccountsPage() {
                 <SortableTableHead field="type" sortBy={sort.field} sortOrder={sort.order} align="center" onSort={changeSort} className="whitespace-nowrap">{t("accountType.label")}</SortableTableHead>
                 <SortableTableHead field="status" sortBy={sort.field} sortOrder={sort.order} align="center" onSort={changeSort} className="whitespace-nowrap">{t("accounts.status")}</SortableTableHead>
                 <TableHead className={cn("whitespace-nowrap", provider !== "grok_build" && "px-6")}>{t("accounts.quota")}</TableHead>
-                <TableHead className="whitespace-nowrap">{t("accounts.egress")}</TableHead>
+                <SortableTableHead field="egress" sortBy={sort.field} sortOrder={sort.order} initialOrder="asc" onSort={changeSort} className="whitespace-nowrap">{t("accounts.egress")}</SortableTableHead>
                 {provider === "grok_build" ? <TableHead className="whitespace-nowrap pl-4">{t("accountCredential.label")}</TableHead> : null}
                 <SortableTableHead field="createdAt" sortBy={sort.field} sortOrder={sort.order} initialOrder="desc" onSort={changeSort} className="whitespace-nowrap">{t("accounts.createdAt")}</SortableTableHead>
                 <TableActionHead />
               </TableRow>
             </TableHeader>
             {accountsQuery.isPending ? (
-              <TableBody><TableLoadingRow colSpan={provider === "grok_build" ? 9 : 8} /></TableBody>
+              <TableBody><TableLoadingRow colSpan={tableColSpan} /></TableBody>
             ) : (
-              <VirtualTableBody
+              <AccountRows
+                grouped={groupByEgress}
+                groups={egressGroups}
+                collapsedKeys={collapsedGroups}
+                colSpan={tableColSpan}
+                onToggleGroup={toggleEgressGroup}
+                onFilterGroup={filterByEgressGroup}
                 items={result?.items ?? []}
-                colSpan={provider === "grok_build" ? 9 : 8}
                 rowHeight={56}
                 renderRow={(account) => (
 	                  <TableRow className="group h-14 [&>td]:py-1.5" key={account.id} data-state={selected.has(account.id) ? "selected" : undefined}>
@@ -2161,129 +2201,6 @@ export function AccountsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={cleanupOpen} onOpenChange={(open) => { if (!cleanupMutation.isPending) { setCleanupOpen(open); if (!open) resetCleanupState(); } }}>
-        <DialogContent className="max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle>{t("accounts.cleanupTitle", { provider: provider === "grok_build" ? "Grok Build" : provider === "grok_web" ? "Grok Web" : "Grok Console" })}</DialogTitle>
-            <DialogDescription>{t("accounts.cleanupDescription")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            {([
-              ["cooldown", t("accounts.statusCooldown")],
-              ["disabled", t("accounts.statusDisabled")],
-              ["reauthRequired", t("accounts.statusReauthRequired")],
-            ] as const).map(([status, label]) => {
-              const checked = cleanupStatuses.has(status);
-              const pending = checked && !cleanupPreviewError && !cleanupPreviewFresh;
-              return (
-                <label key={status} className="flex cursor-pointer items-center gap-3 rounded-md bg-muted/40 px-3 py-2.5 text-xs">
-                  <Checkbox
-                    checked={checked}
-                    disabled={cleanupMutation.isPending}
-                    onCheckedChange={(value) => {
-                      setCleanupStatuses((current) => {
-                        const next = new Set(current);
-                        if (value === true) next.add(status); else next.delete(status);
-                        return next;
-                      });
-                      setCleanupPreviewError(false);
-                    }}
-                  />
-                  <span>{label}</span>
-                  {/* Fixed count slot: spinner while previewing, then the matched root count. */}
-                  <span
-                    className={cn(
-                      "ml-auto inline-flex h-4 min-w-[2.5rem] items-center justify-end tabular-nums text-xs",
-                      cleanupPreviewError ? "text-destructive" : "text-muted-foreground",
-                      !checked && "invisible",
-                    )}
-                    aria-hidden={!checked}
-                    aria-busy={pending}
-                  >
-                    {!checked ? null : cleanupPreviewError ? "!" : pending ? <Spinner className="size-3.5" /> : cleanupPreviewTotals?.rootsByStatus?.[status] ?? 0}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-
-          {/* Smooth-expand linked deletion block, shown once any status is selected. */}
-          <div
-            className={cn(
-              "grid transition-all duration-300 ease-in-out",
-              cleanupStatuses.size > 0 ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-            )}
-            aria-hidden={cleanupStatuses.size === 0}
-          >
-            <div className="overflow-hidden">
-              <div className="space-y-3 border-t pt-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">{t("accounts.linkedDeleteTitle")}</p>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={cleanupMutation.isPending} onClick={selectAllCleanupTargets}>
-                    {linkedTargetOptions(provider).every((item) => cleanupLinkedTargets.includes(item)) ? t("accounts.linkedDeleteClearAll") : t("accounts.linkedDeleteSelectAll")}
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  {linkedTargetOptions(provider).map((target) => {
-                    const checked = cleanupLinkedTargets.includes(target);
-                    const TargetIcon = linkedTargetIcon(target);
-                    const pending = checked && !cleanupPreviewError && !cleanupPreviewFresh;
-                    return (
-                      <label key={target} className="flex min-h-6 items-center gap-2 text-sm">
-                        <Checkbox checked={checked} disabled={cleanupMutation.isPending} onCheckedChange={(value) => toggleCleanupTarget(target, value === true)} />
-                        <TargetIcon className={cn("size-3.5 shrink-0", linkedTargetIconClass(target))} aria-hidden />
-                        <span className="inline-flex min-w-0 items-center gap-1.5">
-                          <span>{linkedTargetLabel(target)}</span>
-                          <span
-                            className={cn(
-                              "inline-flex h-4 min-w-[2.75rem] items-center justify-start tabular-nums text-xs",
-                              cleanupPreviewError ? "text-destructive" : "text-muted-foreground",
-                              !checked && "invisible",
-                            )}
-                            aria-hidden={!checked}
-                            aria-busy={pending}
-                          >
-                            {!checked ? "" : cleanupPreviewError ? t("accounts.linkedDeleteExtraFailed") : pending ? <Spinner className="size-3.5" /> : t("accounts.linkedDeleteExtra", { count: cleanupPreviewTotals?.linkedByProvider?.[target] ?? 0 })}
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {/* Stacked messages: the container keeps the tallest variant's height,
-                    so switching hint/warning/error never resizes the dialog. */}
-                <div className="grid text-xs">
-                  {([
-                    ["error", cleanupPreviewError, t("accounts.cleanupPreviewFailed"), "text-destructive"],
-                    ["warning", !cleanupPreviewError && cleanupLinkedTargets.length > 0, t("accounts.cleanupLinkedWarning"), "text-destructive"],
-                    ["hint", !cleanupPreviewError && cleanupLinkedTargets.length === 0, t("accounts.linkedDeleteHint"), "text-muted-foreground"],
-                  ] as const).map(([key, visible, text, tone]) => (
-                    <p key={key} aria-hidden={!visible} className={cn("col-start-1 row-start-1", tone, !visible && "invisible")}>{text}</p>
-                  ))}
-                </div>
-                {/* Always rendered so the total line never unmounts between refreshes. */}
-                <p className="flex min-h-4 items-center gap-1.5 text-xs text-muted-foreground" aria-busy={!cleanupPreviewFresh && !cleanupPreviewError}>
-                  {cleanupPreviewError ? t("accounts.cleanupPreviewFailed") : !cleanupPreviewFresh ? <Spinner className="size-3.5" /> : t("accounts.cleanupPreviewTotal", { total: cleanupPreviewTotals?.total ?? 0 })}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="secondary" size="sm" disabled={cleanupMutation.isPending} onClick={() => setCleanupOpen(false)}>{t("common.cancel")}</Button>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              disabled={cleanupMutation.isPending || cleanupStatuses.size === 0 || cleanupPreviewError || !cleanupPreviewFresh}
-              onClick={() => cleanupMutation.mutate({ statuses: [...cleanupStatuses], targets: [...cleanupLinkedTargets] })}
-            >
-              {cleanupMutation.isPending ? <Spinner /> : null}
-              {t("accounts.cleanupStart")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -2317,12 +2234,12 @@ function AccountMetricPanel({ icon, label, value, detail, detailItems, loading, 
   tone: string;
 }) {
   return (
-    <div className="min-h-28 rounded-lg bg-card p-4" aria-busy={loading}>
+    <div className="ink-lift min-h-28 rounded-xl border-2 border-border bg-card p-4 shadow-float" aria-busy={loading}>
       <div className="flex min-h-5 items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground">{label}</span>
         <span className={cn("flex size-5 items-center justify-center [&_svg]:size-4", tone)}>{icon}</span>
       </div>
-      <div className="mt-3 flex min-h-8 items-center text-2xl font-medium tracking-tight tabular-nums">{loading ? <Spinner /> : value}</div>
+      <div className="mt-3 flex min-h-8 items-center text-2xl font-bold tracking-tight tabular-nums">{loading ? <Spinner /> : value}</div>
       {detailItems ? (
         <div className={cn("-ml-1.5 mt-1.5 flex min-h-5 flex-wrap gap-1 text-[11px] leading-4", loading && "invisible")} title={detail}>
           {detailItems.map((item) => (
@@ -2366,12 +2283,12 @@ function AccountTypeText({ label, title, variant }: { label: string; title?: str
 function AccountStatus({ account }: { account: AccountDTO }) {
   const { t, i18n } = useTranslation();
   if (!account.enabled) {
-    return <Badge variant="outline" className="text-muted-foreground">{t("accounts.statusDisabled")}</Badge>;
+    return <Badge variant="outline" className="border-dashed text-muted-foreground">{t("accounts.statusDisabled")}</Badge>;
   }
   if (account.authStatus === "reauthRequired") {
     const refreshErrorDetails = formatAdditionalRefreshErrorDetails(account);
     const hasRefreshError = Boolean(account.lastRefreshErrorStatus || account.lastRefreshErrorCode || account.lastRefreshErrorMessage || refreshErrorDetails);
-    if (!hasRefreshError) return <Badge variant="destructive">{t("accounts.statusReauthRequired")}</Badge>;
+    if (!hasRefreshError) return <Badge variant="destructive" className="underline decoration-2 underline-offset-2">{t("accounts.statusReauthRequired")}</Badge>;
     return (
       <StatusTooltip content={(
         <div className="grid w-72 max-w-[calc(100vw-2rem)] grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs font-normal leading-5">
@@ -2381,7 +2298,7 @@ function AccountStatus({ account }: { account: AccountDTO }) {
           {refreshErrorDetails ? <><span className="text-primary-foreground/60">{t("accounts.refreshErrorResponse")}</span><span className="max-h-40 overflow-auto whitespace-pre-wrap break-all">{refreshErrorDetails}</span></> : null}
         </div>
       )}>
-        <Badge variant="destructive">{t("accounts.statusReauthRequired")}</Badge>
+        <Badge variant="destructive" className="underline decoration-2 underline-offset-2">{t("accounts.statusReauthRequired")}</Badge>
       </StatusTooltip>
     );
   }
@@ -2394,7 +2311,7 @@ function AccountStatus({ account }: { account: AccountDTO }) {
       : t("accounts.quotaResetUnknown");
     return (
       <StatusTooltip content={detail}>
-        <Badge variant="secondary" className="bg-amber-500/10 text-amber-700 dark:text-amber-300">{t("accounts.waitingReset")}</Badge>
+        <Badge variant="secondary" className="border-dotted">{t("accounts.waitingReset")}</Badge>
       </StatusTooltip>
     );
   }
@@ -2404,21 +2321,21 @@ function AccountStatus({ account }: { account: AccountDTO }) {
       : t("accounts.quotaResetUnknown");
     return (
       <StatusTooltip content={detail}>
-        <Badge variant="secondary" className="bg-amber-500/10 text-amber-700 dark:text-amber-300">{t("accounts.waitingReset")}</Badge>
+        <Badge variant="secondary" className="border-dotted">{t("accounts.waitingReset")}</Badge>
       </StatusTooltip>
     );
   }
   if (account.quota.status === "probing") {
     return (
       <StatusTooltip content={t(account.quota.type === "paid" ? "accounts.paidProbingQuota" : "accounts.probingQuota")}>
-        <Badge variant="secondary" className="bg-sky-500/10 text-sky-700 dark:text-sky-300">{t("accounts.probing")}</Badge>
+        <Badge variant="secondary" className="border-dashed bg-muted">{t("accounts.probing")}</Badge>
       </StatusTooltip>
     );
   }
   if (account.cooldownUntil && new Date(account.cooldownUntil) > new Date()) {
-    return <Badge variant="secondary" className="bg-amber-500/10 text-amber-700 dark:text-amber-300">{t("accounts.statusCooldown")}</Badge>;
+    return <Badge variant="secondary" className="border-dashed">{t("accounts.statusCooldown")}</Badge>;
   }
-  return <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">{t("accounts.statusActive")}</Badge>;
+  return <Badge className="border-foreground bg-foreground text-background">{t("accounts.statusActive")}</Badge>;
 }
 
 function formatAdditionalRefreshErrorDetails(account: AccountDTO): string | undefined {

@@ -558,7 +558,7 @@ func (s *Service) List(ctx context.Context, page, pageSize int, search string, f
 		!oneOf(filter.Agreement, "", "nsfwEnabled", "nsfwDisabled", "termsAccepted", "termsNotAccepted", "allAccepted", "allNotAccepted") ||
 		(filter.Agreement != "" && filter.Provider != string(accountdomain.ProviderWeb)) ||
 		!validAssociationFilter(filter.Provider, filter.Association) ||
-		!repository.IsValidSort(filter.Sort, "name", "type", "status", "createdAt") {
+		!repository.IsValidSort(filter.Sort, "name", "type", "status", "createdAt", "egress") {
 		return nil, 0, ErrInvalidFilter
 	}
 	var refreshable *bool
@@ -2816,7 +2816,27 @@ func (s *Service) refreshBilling(ctx context.Context, id uint64) (accountdomain.
 	if err := s.reconcilePaidQuotaRecovery(ctx, value, billing, false); err != nil {
 		return accountdomain.Billing{}, err
 	}
+	s.restoreAutoDisabledAccount(ctx, value)
 	return billing, nil
+}
+
+// restoreAutoDisabledAccount 把被网关自动停用的账号重新放回轮换池。
+// 自动停用只是标记（enabled=false），账号并没有被删除，所以额度刷新成功后
+// 必须重新启用，否则它将永远无法继续调用。手动停用的账号保持原状。
+func (s *Service) restoreAutoDisabledAccount(ctx context.Context, value accountdomain.Credential) {
+	if value.Enabled || value.LastError != accountdomain.LastErrorMissingThinkingDisabled {
+		return
+	}
+	enabled := true
+	if _, err := s.accounts.UpdateMany(ctx, value.Provider, []uint64{value.ID}, repository.AccountUpdates{Enabled: &enabled}); err != nil {
+		s.logger.Warn("account_auto_restore_failed", "account_id", value.ID, "error", err)
+		return
+	}
+	if err := s.accounts.UpdateHealth(ctx, value.ID, value.Provider, 0, nil, "", true); err != nil {
+		s.logger.Warn("account_auto_restore_health_reset_failed", "account_id", value.ID, "error", err)
+		return
+	}
+	s.logger.Info("account_auto_restored", "account_id", value.ID, "provider", value.Provider)
 }
 
 func (s *Service) fetchAndSaveBilling(ctx context.Context, id uint64) (accountdomain.Credential, accountdomain.Billing, error) {
@@ -2965,6 +2985,7 @@ func (s *Service) RefreshQuota(ctx context.Context, id uint64) ([]accountdomain.
 	if err := s.reconcileQuotaRecoveryWindows(ctx, refreshed.Credential.Provider, id, refreshed.Windows); err != nil {
 		return refreshed.Windows, err
 	}
+	s.restoreAutoDisabledAccount(ctx, refreshed.Credential)
 	// 身份补全是非关键操作：只在额度落库和恢复任务调度完成后执行，
 	// 并沿用调用方取消语义，不能反向影响额度同步结果。
 	value := refreshed.Credential

@@ -83,7 +83,8 @@ func autoCleanInterval(cfg AutoCleanConfig) time.Duration {
 	return normalizeAutoCleanConfig(cfg).Interval
 }
 
-// RunAccountAutoClean 在启用时周期性删除过期的 reauthRequired 账号；默认关闭。
+// RunAccountAutoClean 在启用时周期性停用过期的 reauthRequired 账号；默认关闭。
+// 账号只会被停用（enabled=false），不会从库里移除：额度刷新成功后可以自动恢复。
 // timer 绑定配置 revision，旧 timer 即使与热更新同时就绪也只能重排，不能使用新配置执行删除。
 func (s *Service) RunAccountAutoClean(ctx context.Context) {
 	// NewService / 启动接线可能已向 wake 写入；启动时统一按最新快照排程。
@@ -143,7 +144,7 @@ func (s *Service) runAutoCleanReauthRevision(ctx context.Context, cfg AutoCleanC
 	markedBefore := s.now().Add(-cfg.MinAge)
 	var afterID uint64
 	scanned := 0
-	deleted := 0
+	disabled := 0
 	skipped := 0
 	activeSkipped := 0
 	scanBatches := 0
@@ -156,8 +157,8 @@ func (s *Service) runAutoCleanReauthRevision(ctx context.Context, cfg AutoCleanC
 		}
 		candidates, err := s.accounts.ListAutoCleanReauthCandidates(runCtx, markedBefore, cfg.IncludeDisabled, afterID, autoCleanReauthBatchSize)
 		if err != nil {
-			if scanned > 0 || deleted > 0 || skipped > 0 {
-				s.logger.Warn("auto_clean_reauth_partial", "deleted", deleted, "scanned", scanned, "skipped", skipped, "error", err)
+			if scanned > 0 || disabled > 0 || skipped > 0 {
+				s.logger.Warn("auto_clean_reauth_partial", "disabled", disabled, "scanned", scanned, "skipped", skipped, "error", err)
 			}
 			return err
 		}
@@ -185,18 +186,18 @@ func (s *Service) runAutoCleanReauthRevision(ctx context.Context, cfg AutoCleanC
 			continue
 		}
 		deleteBatches++
-		ids, err := s.accounts.DeleteAutoCleanReauthCandidates(runCtx, markedBefore, cfg.IncludeDisabled, deletable)
+		ids, err := s.accounts.DisableAutoCleanReauthCandidates(runCtx, markedBefore, cfg.IncludeDisabled, deletable)
 		if err != nil {
-			if scanned > 0 || deleted > 0 || skipped > 0 {
-				s.logger.Warn("auto_clean_reauth_partial", "deleted", deleted, "scanned", scanned, "skipped", skipped, "error", err)
+			if scanned > 0 || disabled > 0 || skipped > 0 {
+				s.logger.Warn("auto_clean_reauth_partial", "disabled", disabled, "scanned", scanned, "skipped", skipped, "error", err)
 			}
 			return err
 		}
-		deleted += len(ids)
+		disabled += len(ids)
 		skipped += len(deletable) - len(ids)
 		if len(ids) > 0 {
-			s.logger.Debug("auto_clean_reauth_batch_deleted", "account_ids", ids)
-			if failures, cleanupErr := s.clearDeletedAccountRuntimeState(runCtx, ids); cleanupErr != nil {
+			s.logger.Debug("auto_clean_reauth_batch_disabled", "account_ids", ids)
+			if failures, cleanupErr := s.clearDisabledAccountRuntimeState(runCtx, ids); cleanupErr != nil {
 				s.logger.Warn("auto_clean_reauth_runtime_cleanup_failed", "failures", failures, "error", cleanupErr)
 			}
 		}
@@ -206,11 +207,11 @@ func (s *Service) runAutoCleanReauthRevision(ctx context.Context, cfg AutoCleanC
 		}
 	}
 	limitReached = !exhausted && (scanBatches == autoCleanReauthMaxScans || deleteBatches == autoCleanReauthMaxDeletes)
-	if deleted > 0 {
+	if disabled > 0 {
 		s.invalidateBuildBotFlagCache()
 	}
-	if scanned > 0 || deleted > 0 || skipped > 0 {
-		s.logger.Info("auto_clean_reauth", "deleted", deleted, "scanned", scanned, "skipped", skipped, "active_skipped", activeSkipped, "scan_batches", scanBatches, "delete_batches", deleteBatches, "limit_reached", limitReached, "min_age", cfg.MinAge.String(), "include_disabled", cfg.IncludeDisabled)
+	if scanned > 0 || disabled > 0 || skipped > 0 {
+		s.logger.Info("auto_clean_reauth", "disabled", disabled, "scanned", scanned, "skipped", skipped, "active_skipped", activeSkipped, "scan_batches", scanBatches, "delete_batches", deleteBatches, "limit_reached", limitReached, "min_age", cfg.MinAge.String(), "include_disabled", cfg.IncludeDisabled)
 	}
 	return nil
 }
@@ -251,7 +252,7 @@ func (s *Service) excludeAccountsWithActiveLeases(ctx context.Context, ids []uin
 	return deletable, active, nil
 }
 
-func (s *Service) clearDeletedAccountRuntimeState(ctx context.Context, ids []uint64) (int, error) {
+func (s *Service) clearDisabledAccountRuntimeState(ctx context.Context, ids []uint64) (int, error) {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoCleanRuntimeWriteLimit)
 	defer cancel()
 	failures, firstErr := s.deleteStickyAccounts(cleanupCtx, ids)

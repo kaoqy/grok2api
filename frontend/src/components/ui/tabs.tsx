@@ -48,11 +48,11 @@ export const TabsList = React.forwardRef<React.ElementRef<typeof TabsPrimitive.L
     }, [updateIndicator]);
 
     return (
-      <TabsPrimitive.List ref={setListRef} className={cn("relative isolate inline-flex h-8 w-fit items-center gap-0.5 rounded-md border bg-secondary p-[2.5px]", className)} {...props}>
+      <TabsPrimitive.List ref={setListRef} className={cn("relative isolate inline-flex h-9 w-fit items-center gap-1 rounded-xl border-2 border-border bg-card p-1", className)} {...props}>
         {indicator ? (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute left-0 top-0 z-0 rounded-[5px] bg-card shadow-[var(--shadow-panel)] transition-[transform,width,height] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            className="pointer-events-none absolute left-0 top-0 z-0 rounded-lg bg-foreground shadow-[2px_2px_0_0_var(--shadow-ink)] transition-[transform,width,height] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             style={{ width: indicator.width, height: indicator.height, transform: `translate3d(${indicator.left}px, ${indicator.top}px, 0)` }}
           />
         ) : null}
@@ -65,7 +65,7 @@ export const TabsList = React.forwardRef<React.ElementRef<typeof TabsPrimitive.L
 export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
     <TabsPrimitive.Trigger
-      className={cn("relative z-10 inline-flex h-[27px] items-center justify-center rounded-[5px] px-3 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 data-[state=active]:font-semibold data-[state=active]:text-foreground", className)}
+      className={cn("relative z-10 inline-flex h-7 items-center justify-center rounded-lg px-3 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 data-[state=active]:text-background", className)}
       {...props}
     />
   );
@@ -74,3 +74,4 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
 export function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
   return <TabsPrimitive.Content className={cn("min-w-0 outline-none", className)} {...props} />;
 }
+

@@ -23,15 +23,13 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, viewp
     />
   </div>
 ))
-Table.displayName = "Table"
 
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  <thead ref={ref} className={cn("[&_tr]:border-b-2 [&_tr]:border-border", className)} {...props} />
 ))
-TableHeader.displayName = "TableHeader"
 
 const TableBody = React.forwardRef<
   HTMLTableSectionElement,
@@ -43,7 +41,6 @@ const TableBody = React.forwardRef<
     {...props}
   />
 ))
-TableBody.displayName = "TableBody"
 
 const TableFooter = React.forwardRef<
   HTMLTableSectionElement,
@@ -52,13 +49,12 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+      "border-t-2 border-border bg-muted font-medium [&>tr]:last:border-b-0",
       className
     )}
     {...props}
   />
 ))
-TableFooter.displayName = "TableFooter"
 
 const TableRow = React.forwardRef<
   HTMLTableRowElement,
@@ -67,13 +63,12 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b transition-colors hover:bg-[color-mix(in_oklab,var(--secondary)_45%,var(--background))] data-[state=selected]:bg-secondary",
+      "border-b border-border transition-colors hover:bg-muted data-[state=selected]:bg-muted",
       className
     )}
     {...props}
   />
 ))
-TableRow.displayName = "TableRow"
 
 const TableHead = React.forwardRef<
   HTMLTableCellElement,
@@ -82,13 +77,12 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-9 rounded-md bg-secondary px-3 text-left align-middle text-xs font-semibold text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[1px]",
+      "h-9 border-b-2 border-border bg-muted px-3 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[1px]",
       className
     )}
     {...props}
   />
 ))
-TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<
   HTMLTableCellElement,
@@ -103,7 +97,6 @@ const TableCell = React.forwardRef<
     {...props}
   />
 ))
-TableCell.displayName = "TableCell"
 
 const TableActionHead = React.forwardRef<
   HTMLTableCellElement,
@@ -111,7 +104,7 @@ const TableActionHead = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TableHead
     ref={ref}
-    className={cn("sticky right-0 z-20 w-12 min-w-12 border-b bg-card px-2", className)}
+    className={cn("sticky right-0 z-20 w-12 min-w-12 bg-card px-2", className)}
     {...props}
   />
 ))
@@ -124,7 +117,7 @@ const TableActionCell = React.forwardRef<
   <TableCell
     ref={ref}
     className={cn(
-      "sticky right-0 z-10 w-12 min-w-12 bg-card px-2 transition-colors group-hover:bg-[color-mix(in_oklab,var(--secondary)_45%,var(--card))] group-data-[state=selected]:bg-secondary",
+      "sticky right-0 z-10 w-12 min-w-12 bg-card px-2 transition-colors group-hover:bg-muted group-data-[state=selected]:bg-muted",
       className
     )}
     {...props}
@@ -149,8 +142,8 @@ export {
   TableHeader,
   TableBody,
   TableFooter,
-  TableHead,
   TableRow,
+  TableHead,
   TableCell,
   TableActionHead,
   TableActionCell,

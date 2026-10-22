@@ -76,15 +76,15 @@ func TestDeleteAutoCleanReauthBatchSkipsActiveMediaJobs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deleted, err := repo.DeleteAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, []uint64{blocked.ID, free.ID, ambiguous.ID})
+	disabled, err := repo.DisableAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, []uint64{blocked.ID, free.ID, ambiguous.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(candidates) != 1 || candidates[0] != free.ID {
-		t.Fatalf("candidates=%d deleted=%v", len(candidates), deleted)
+		t.Fatalf("candidates=%d disabled=%v", len(candidates), disabled)
 	}
-	if len(deleted) != 1 || deleted[0] != free.ID {
-		t.Fatalf("deleted=%v want only free=%d", deleted, free.ID)
+	if len(disabled) != 1 || disabled[0] != free.ID {
+		t.Fatalf("disabled=%v want only free=%d", disabled, free.ID)
 	}
 	if _, err := repo.Get(ctx, blocked.ID); err != nil {
 		t.Fatalf("blocked account should remain: %v", err)
@@ -92,14 +92,16 @@ func TestDeleteAutoCleanReauthBatchSkipsActiveMediaJobs(t *testing.T) {
 	if _, err := repo.Get(ctx, ambiguous.ID); err != nil {
 		t.Fatalf("unclassified refresh reauth account should remain: %v", err)
 	}
-	if _, err := repo.Get(ctx, free.ID); err == nil {
-		t.Fatal("free account should be deleted")
+	if value, err := repo.Get(ctx, free.ID); err != nil {
+		t.Fatalf("free account should remain: %v", err)
+	} else if value.Enabled {
+		t.Fatal("free account should be disabled")
 	}
 }
 
 func ptrTime(value time.Time) *time.Time { return &value }
 
-func TestDeleteAutoCleanSkipsNullAnchorAndQueuedMedia(t *testing.T) {
+func TestDisableAutoCleanSkipsNullAnchorAndQueuedMedia(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 20, 21, 0, 0, 0, time.UTC)
 	database, err := OpenSQLite(ctx, filepath.Join(t.TempDir(), "auto-clean-null.db"))
@@ -154,12 +156,12 @@ func TestDeleteAutoCleanSkipsNullAnchorAndQueuedMedia(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deleted, err := repo.DeleteAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, []uint64{queued.ID})
+	disabled, err := repo.DisableAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, []uint64{queued.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(candidates) != 0 || len(deleted) != 0 {
-		t.Fatalf("candidates=%d deleted=%v (null anchor excluded, queued skipped)", len(candidates), deleted)
+	if len(candidates) != 0 || len(disabled) != 0 {
+		t.Fatalf("candidates=%d disabled=%v (null anchor excluded, queued skipped)", len(candidates), disabled)
 	}
 	if _, err := repo.Get(ctx, nullAnchor.ID); err != nil {
 		t.Fatalf("null-anchor account missing: %v", err)
@@ -169,7 +171,7 @@ func TestDeleteAutoCleanSkipsNullAnchorAndQueuedMedia(t *testing.T) {
 	}
 }
 
-func TestDeleteAutoCleanRevalidatesStatusAfterListing(t *testing.T) {
+func TestDisableAutoCleanRevalidatesStatusAfterListing(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 21, 1, 0, 0, 0, time.UTC)
 	database, err := OpenSQLite(ctx, filepath.Join(t.TempDir(), "auto-clean-revalidate.db"))
@@ -197,12 +199,12 @@ func TestDeleteAutoCleanRevalidatesStatusAfterListing(t *testing.T) {
 	if _, err := repo.Update(ctx, value); err != nil {
 		t.Fatal(err)
 	}
-	deleted, err := repo.DeleteAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, candidates)
+	disabled, err := repo.DisableAutoCleanReauthCandidates(ctx, now.Add(-time.Hour), false, candidates)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(deleted) != 0 {
-		t.Fatalf("recovered account deleted: %v", deleted)
+	if len(disabled) != 0 {
+		t.Fatalf("recovered account disabled: %v", disabled)
 	}
 	if refreshed, err := repo.Get(ctx, value.ID); err != nil || refreshed.AuthStatus != accountdomain.AuthStatusActive || refreshed.ReauthMarkedAt != nil {
 		t.Fatalf("recovered account=%#v err=%v", refreshed, err)

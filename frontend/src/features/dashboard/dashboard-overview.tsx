@@ -89,11 +89,11 @@ export function DashboardResources({ dashboard, locale, loading }: DashboardData
   const chartConfig = {
     active: {
       label: t("dashboard.activeAccounts"),
-      theme: { light: "oklch(0.68 0.14 160)", dark: "oklch(0.74 0.12 160)" },
+      theme: { light: "oklch(0.28 0 0)", dark: "oklch(0.92 0 0)" },
     },
     unavailable: {
       label: t("dashboard.unavailableAccounts"),
-      theme: { light: "oklch(0.88 0.01 250)", dark: "oklch(0.36 0.01 250)" },
+      theme: { light: "oklch(0.84 0 0)", dark: "oklch(0.45 0 0)" },
     },
   } satisfies ChartConfig;
   const chartData = totalAccounts > 0 ? [

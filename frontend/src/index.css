@@ -4,106 +4,170 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Obsidian control plane.
+ * Ink.
  *
- * A cool graphite substrate carries the whole product so the interface reads
- * as one machined surface instead of a collection of cards. Colour is spent
- * deliberately: one indigo accent carries interaction, the cyan/mint/amber
- * family carries data, and red is reserved for loss.
+ * Two inks only: pure black and pure white. Every surface, border and label
+ * is one of them; hierarchy comes from weight, border thickness, hard offset
+ * shadows and inversion instead of hue. The dark scheme is the same drawing
+ * with the inks swapped, so the product reads as one system that follows the
+ * operating system rather than two separate designs.
  */
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: #f4f5f7;
-  --foreground: #12141a;
+  --background: #ffffff;
+  --foreground: #000000;
+  --ink: #000000;
+  --ink-soft: rgb(0 0 0 / 0.62);
+  --ink-faint: rgb(0 0 0 / 0.42);
+  --ink-dot: rgb(0 0 0 / 0.07);
 
   --card: #ffffff;
-  --card-foreground: #12141a;
+  --card-foreground: #000000;
   --popover: #ffffff;
-  --popover-foreground: #12141a;
+  --popover-foreground: #000000;
 
-  --primary: #5a49e8;
-  --primary-foreground: #f7f6ff;
+  --primary: #000000;
+  --primary-foreground: #ffffff;
 
-  --secondary: #e8e9ee;
-  --secondary-foreground: #1b1e26;
-  --muted: #eeeff3;
-  --muted-foreground: #626776;
-  --accent: #e6e4ff;
-  --accent-foreground: #4636d6;
+  --secondary: #ffffff;
+  --secondary-foreground: #000000;
+  --muted: rgb(0 0 0 / 0.05);
+  --muted-foreground: rgb(0 0 0 / 0.62);
+  --accent: rgb(0 0 0 / 0.08);
+  --accent-foreground: #000000;
 
-  --destructive: #d13438;
-  --border: #dcdee5;
-  --input: #c3c6d0;
-  --ring: #5a49e8;
+  --destructive: #000000;
+  --destructive-foreground: #ffffff;
+  --border: #000000;
+  --input: #000000;
+  --ring: #000000;
 
-  --sidebar: #15171d;
-  --sidebar-foreground: #9a9dad;
-  --sidebar-primary: #8b7dff;
-  --sidebar-primary-foreground: #14121f;
-  --sidebar-accent: #1e2029;
-  --sidebar-accent-foreground: #f2f2f7;
-  --sidebar-border: #262933;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #000000;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(0 0 0 / 0.07);
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #000000;
 
-  /* 语义色：成功 / 警告 / 推理 */
-  --success: #16855a;
-  --warn: #b26a00;
-  --think: #6d4fd0;
+  /* 语义标记同样只用墨色，靠形状（实心/虚线/双线）区分状态。 */
+  --success: #000000;
+  --warn: #000000;
+  --think: #000000;
 
-  /* 数据色板：额度、产品与风险分类共用 */
-  --quota-product-0: #6b7280;
-  --quota-product-1: #3f6fd8;
-  --quota-product-2: #16855a;
-  --quota-product-3: #b26a00;
-  --quota-product-4: #6d4fd0;
-  --quota-product-5: #1a8fa3;
-  --quota-product-6: #d13438;
+  /* 数据系列用同一支墨的灰阶，保证图表在纯黑白下仍然可读。 */
+  --quota-product-0: #000000;
+  --quota-product-1: #3d3d3d;
+  --quota-product-2: #5c5c5c;
+  --quota-product-3: #7a7a7a;
+  --quota-product-4: #999999;
+  --quota-product-5: #b8b8b8;
+  --quota-product-6: #d6d6d6;
 }
 
 .dark {
-  --background: #0b0d11;
-  --foreground: #e8eaf0;
+  --background: #000000;
+  --foreground: #ffffff;
+  --ink: #ffffff;
+  --ink-soft: rgb(255 255 255 / 0.66);
+  --ink-faint: rgb(255 255 255 / 0.45);
+  --ink-dot: rgb(255 255 255 / 0.08);
 
-  --card: #12151b;
-  --card-foreground: #e8eaf0;
-  --popover: #15181f;
-  --popover-foreground: #e8eaf0;
+  --card: #000000;
+  --card-foreground: #ffffff;
+  --popover: #000000;
+  --popover-foreground: #ffffff;
 
-  --primary: #8b7dff;
-  --primary-foreground: #15122a;
+  --primary: #ffffff;
+  --primary-foreground: #000000;
 
-  --secondary: #1b1e26;
-  --secondary-foreground: #e8eaf0;
-  --muted: #1b1e26;
-  --muted-foreground: #8f95a6;
-  --accent: #221f3d;
-  --accent-foreground: #c3bcff;
+  --secondary: #000000;
+  --secondary-foreground: #ffffff;
+  --muted: rgb(255 255 255 / 0.08);
+  --muted-foreground: rgb(255 255 255 / 0.66);
+  --accent: rgb(255 255 255 / 0.12);
+  --accent-foreground: #ffffff;
 
-  --destructive: #f2686b;
-  --border: #232733;
-  --input: #333846;
-  --ring: #8b7dff;
+  --destructive: #ffffff;
+  --destructive-foreground: #000000;
+  --border: #ffffff;
+  --input: #ffffff;
+  --ring: #ffffff;
 
-  --sidebar: #0d0f14;
-  --sidebar-foreground: #8b91a2;
-  --sidebar-primary: #8b7dff;
-  --sidebar-primary-foreground: #15122a;
-  --sidebar-accent: #181b23;
-  --sidebar-accent-foreground: #f0f1f6;
-  --sidebar-border: #20242e;
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgb(255 255 255 / 0.12);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #ffffff;
 
-  --success: #4ecb92;
-  --warn: #e0a24a;
-  --think: #b49bf0;
+  --success: #ffffff;
+  --warn: #ffffff;
+  --think: #ffffff;
 
-  --quota-product-0: #8b91a2;
-  --quota-product-1: #6f9bf0;
-  --quota-product-2: #4ecb92;
-  --quota-product-3: #e0a24a;
-  --quota-product-4: #b49bf0;
-  --quota-product-5: #45c2d6;
-  --quota-product-6: #f2686b;
+  --quota-product-0: #ffffff;
+  --quota-product-1: #d0d0d0;
+  --quota-product-2: #ababab;
+  --quota-product-3: #868686;
+  --quota-product-4: #626262;
+  --quota-product-5: #454545;
+  --quota-product-6: #2e2e2e;
+}
+
+/*
+ * 调色板统一到墨色。
+ *
+ * 主题只用黑白两支墨，其余色阶被映射成同一支墨的灰阶，
+ * 这样图标、状态徽章、图表与热力图都落在同一个视觉系统里。
+ */
+@theme {
+  --color-amber-300: #d6d6d6;
+  --color-amber-400: #b4b4b4;
+  --color-amber-500: #909090;
+  --color-amber-600: #6e6e6e;
+  --color-amber-700: #545454;
+  --color-cyan-400: #b4b4b4;
+  --color-cyan-700: #545454;
+  --color-emerald-300: #d6d6d6;
+  --color-emerald-400: #b4b4b4;
+  --color-emerald-500: #909090;
+  --color-emerald-600: #6e6e6e;
+  --color-emerald-700: #545454;
+  --color-fuchsia-400: #b4b4b4;
+  --color-fuchsia-600: #6e6e6e;
+  --color-indigo-400: #b4b4b4;
+  --color-indigo-600: #6e6e6e;
+  --color-orange-300: #d6d6d6;
+  --color-orange-400: #b4b4b4;
+  --color-orange-500: #909090;
+  --color-orange-600: #6e6e6e;
+  --color-orange-700: #545454;
+  --color-pink-400: #b4b4b4;
+  --color-pink-500: #909090;
+  --color-red-300: #d6d6d6;
+  --color-red-400: #b4b4b4;
+  --color-red-500: #909090;
+  --color-red-600: #6e6e6e;
+  --color-red-700: #545454;
+  --color-rose-400: #b4b4b4;
+  --color-rose-500: #909090;
+  --color-rose-600: #6e6e6e;
+  --color-sky-300: #d6d6d6;
+  --color-sky-400: #b4b4b4;
+  --color-sky-500: #909090;
+  --color-sky-600: #6e6e6e;
+  --color-sky-700: #545454;
+  --color-teal-400: #b4b4b4;
+  --color-teal-600: #6e6e6e;
+  --color-teal-700: #545454;
+  --color-violet-400: #b4b4b4;
+  --color-violet-500: #909090;
+  --color-violet-600: #6e6e6e;
+  --color-yellow-400: #b4b4b4;
+  --color-yellow-500: #909090;
 }
 
 @theme inline {
@@ -122,6 +186,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -143,24 +208,27 @@
   --color-quota-product-5: var(--quota-product-5);
   --color-quota-product-6: var(--quota-product-6);
 
-  --radius-sm: 5px;
-  --radius-md: 7px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
-  --radius-2xl: 14px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
 
-  --shadow-panel: 0 1px 2px rgb(10 12 18 / 0.05), 0 12px 28px rgb(10 12 18 / 0.05);
-  --shadow-float: 0 2px 6px rgb(10 12 18 / 0.09), 0 20px 48px rgb(10 12 18 / 0.14);
+  /* 硬边阴影：没有模糊，像贴纸一样错位压住卡片。 */
+  --shadow-panel: 2px 2px 0 0 var(--shadow-ink);
+  --shadow-float: 4px 4px 0 0 var(--shadow-ink);
+  --shadow-ink: #000000;
 }
 
-* {
-  border-color: var(--border);
+.dark {
+  --shadow-ink: rgb(255 255 255 / 0.82);
 }
 
 @layer base {
   * {
+    border-color: var(--border);
     scrollbar-width: thin;
-    scrollbar-color: var(--input) transparent;
+    scrollbar-color: var(--ink-faint) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -176,11 +244,11 @@
     border: 2px solid transparent;
     border-radius: 8px;
     background-clip: content-box;
-    background-color: var(--input);
+    background-color: var(--ink-faint);
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background-color: var(--muted-foreground);
+    background-color: var(--foreground);
     background-clip: content-box;
   }
 }
@@ -211,23 +279,88 @@ body {
   font-feature-settings: "ss01" 1, "cv02" 1;
 }
 
-/* 画布：中心微光 + 极淡网格，给出仪表盘的纵深而不是装饰。 */
+/*
+ * 画布：缓慢漂移的点阵。墨色只有一支，深浅由透明度给出，
+ * 页面因此始终有一个轻微的呼吸感，而不会抢走数据的注意力。
+ */
 .app-canvas {
-  background-image:
-    radial-gradient(120% 80% at 50% -10%, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 62%),
-    linear-gradient(to right, color-mix(in oklab, var(--border) 30%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--border) 22%, transparent) 1px, transparent 1px);
-  background-size: 100% 100%, 72px 72px, 72px 72px;
-  background-position: 0 0, -1px -1px, -1px -1px;
+  background-color: var(--background);
+  background-image: radial-gradient(var(--ink-dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: 0 0;
+  animation: canvas-drift 24s linear infinite;
 }
 
-.dark .app-canvas {
-  background-image:
-    radial-gradient(120% 80% at 50% -10%, color-mix(in oklab, var(--primary) 14%, transparent) 0%, transparent 60%),
-    linear-gradient(to right, color-mix(in oklab, var(--border) 34%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--border) 26%, transparent) 1px, transparent 1px);
-  background-size: 100% 100%, 72px 72px, 72px 72px;
-  background-position: 0 0, -1px -1px, -1px -1px;
+@keyframes canvas-drift {
+  to {
+    background-position: 22px 22px;
+  }
+}
+
+/* 路由切换时整块内容抬升淡入，让后台在不同页面间有连续感。 */
+.page-enter {
+  animation: page-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes page-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 列表逐行落位，长表格读起来更有节奏。 */
+.stagger > * {
+  animation: page-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 240ms; }
+
+/* 贴纸式悬停：抬起一点，阴影同时变长。 */
+.ink-lift {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ink-lift:hover {
+  transform: translate3d(-2px, -2px, 0);
+  box-shadow: 6px 6px 0 0 var(--shadow-ink);
+}
+
+/* 在线指示：呼吸点。 */
+.ink-pulse {
+  animation: ink-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes ink-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* 顶部墨线：换页时从左往右扫一道，给后台的切换一个落点。 */
+.route-flash {
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 2px;
+  background: var(--foreground);
+  transform-origin: left center;
+  animation: route-flash 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+}
+
+@keyframes route-flash {
+  0% { transform: scaleX(0); opacity: 1; }
+  35% { transform: scaleX(0.55); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
 }
 
 h1,
@@ -238,9 +371,24 @@ h4 {
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--primary) 22%, transparent);
+  background: var(--foreground);
+  color: var(--background);
 }
 
 :focus-visible {
   outline-color: var(--ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-canvas,
+  .page-enter,
+  .stagger > *,
+  .ink-pulse,
+  .route-flash {
+    animation: none !important;
+  }
+
+  .ink-lift:hover {
+    transform: none;
+  }
 }

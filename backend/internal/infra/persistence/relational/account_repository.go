@@ -142,6 +142,9 @@ func (r *AccountRepository) List(ctx context.Context, input repository.AccountLi
 		"type":      {expression: accountTypeSortExpression},
 		"status":    {expression: accountStatusSortExpression},
 		"createdAt": {expression: "provider_accounts.created_at", defaultDirection: repository.SortDescending},
+		// 出口分组视图依赖这个排序：同一个 SOCKS 节点的账号在结果里连续，
+		// 未绑定出口的账号排在最后。
+		"egress": {expression: "COALESCE((SELECT egress.name FROM egress_nodes egress WHERE egress.id = provider_accounts.egress_node_id), '')"},
 	}, sortSpec{expression: "provider_accounts.created_at", defaultDirection: repository.SortDescending}, "provider_accounts.id")
 	if err := query.Preload("Credential").Preload("WebProfile").Offset(input.Page.Offset).Limit(input.Page.Limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
@@ -1816,11 +1819,15 @@ func (r *AccountRepository) ListAutoCleanReauthCandidates(ctx context.Context, m
 	return candidates, err
 }
 
-func (r *AccountRepository) DeleteAutoCleanReauthCandidates(ctx context.Context, markedBefore time.Time, includeDisabled bool, candidateIDs []uint64) ([]uint64, error) {
+// DisableAutoCleanReauthCandidates 只停用账号，不删除它们。
+//
+// 账号被停用后仍然留在库里：额度刷新成功后可以自动重新启用，
+// 继续参与调用，而不是被永久移除。
+func (r *AccountRepository) DisableAutoCleanReauthCandidates(ctx context.Context, markedBefore time.Time, includeDisabled bool, candidateIDs []uint64) ([]uint64, error) {
 	if len(candidateIDs) == 0 {
 		return []uint64{}, nil
 	}
-	deletedIDs := make([]uint64, 0, len(candidateIDs))
+	disabledIDs := make([]uint64, 0, len(candidateIDs))
 	err := r.db.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockAccountLinkMutation(tx); err != nil {
 			return err
@@ -1851,38 +1858,28 @@ func (r *AccountRepository) DeleteAutoCleanReauthCandidates(ctx context.Context,
 		if len(lockedIDs) == 0 {
 			return nil
 		}
-		deletion := tx.Where("id IN ? AND auth_status = ? AND reauth_marked_at IS NOT NULL AND reauth_marked_at < ?", lockedIDs, account.AuthStatusReauthRequired, markedBefore.UTC()).
+		disable := tx.Model(&accountModel{}).Where("id IN ? AND auth_status = ? AND reauth_marked_at IS NOT NULL AND reauth_marked_at < ?", lockedIDs, account.AuthStatusReauthRequired, markedBefore.UTC()).
 			Where(accountUnclassifiedRefreshReauthPredicate)
 		if !includeDisabled {
-			deletion = deletion.Where("enabled = ?", true)
+			disable = disable.Where("enabled = ?", true)
 		}
-		result := deletion.Delete(&accountModel{})
+		result := disable.Update("enabled", false)
 		if result.Error != nil {
 			return result.Error
 		}
-		if result.RowsAffected == int64(len(lockedIDs)) {
-			deletedIDs = append(deletedIDs, lockedIDs...)
-			return nil
-		}
-		var remaining []uint64
-		if err := tx.Model(&accountModel{}).Where("id IN ?", lockedIDs).Pluck("id", &remaining).Error; err != nil {
-			return err
-		}
-		remainingSet := make(map[uint64]struct{}, len(remaining))
-		for _, id := range remaining {
-			remainingSet[id] = struct{}{}
-		}
-		for _, id := range lockedIDs {
-			if _, exists := remainingSet[id]; !exists {
-				deletedIDs = append(deletedIDs, id)
+		if result.RowsAffected > 0 {
+			// 停用后释放出口租约，避免节点一直认为该账号占用出口。
+			if err := tx.Where("account_id IN ?", lockedIDs).Delete(&accountEgressLeaseBlockModel{}).Error; err != nil {
+				return err
 			}
 		}
+		disabledIDs = append(disabledIDs, lockedIDs...)
 		return nil
 	})
-	if err == nil && len(deletedIDs) > 0 {
+	if err == nil && len(disabledIDs) > 0 {
 		r.notifyInvalidation(ctx, repository.InvalidationEvent{Kind: repository.InvalidationAccountStateChanged})
 	}
-	return deletedIDs, err
+	return disabledIDs, err
 }
 
 // excludeAccountsWithActiveMediaJobs 返回无 queued/in_progress 视频任务的账号 ID（顺序保持输入顺序）。
@@ -2585,10 +2582,22 @@ func (r *AccountRepository) ResetQuotaState(ctx context.Context, provider accoun
 		return nil
 	}
 	err := r.db.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 只有带额度恢复记录的账号才可能被自动停用。额度重置后这些账号
+		// 必须重新启用，否则刷新完额度仍然无法继续参与调用。
+		var recovered []uint64
+		if err := tx.Model(&quotaRecoveryModel{}).Where("account_id IN ?", accountIDs).Distinct().Pluck("account_id", &recovered).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("account_id IN ?", accountIDs).Delete(&quotaRecoveryModel{}).Error; err != nil {
 			return err
 		}
-		return tx.Where("account_id IN ? AND reason = ?", accountIDs, "model_quota_depleted").Delete(&accountModelQuotaBlockModel{}).Error
+		if err := tx.Where("account_id IN ? AND reason = ?", accountIDs, "model_quota_depleted").Delete(&accountModelQuotaBlockModel{}).Error; err != nil {
+			return err
+		}
+		if len(recovered) == 0 {
+			return nil
+		}
+		return tx.Model(&accountModel{}).Where("id IN ? AND enabled = ?", recovered, false).Update("enabled", true).Error
 	})
 	if err == nil {
 		r.notifyInvalidation(ctx, repository.InvalidationEvent{Kind: repository.InvalidationAccountRecoveryChanged, Provider: provider})

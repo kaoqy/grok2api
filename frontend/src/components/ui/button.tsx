@@ -4,21 +4,25 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/shared/lib/cn"
 
+// Buttons are stickers: a thick ink border with a hard offset shadow that
+// collapses when the button is pressed.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,border-color,color,box-shadow,transform] outline-none focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-1 focus-visible:ring-offset-background active:translate-y-px disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-[background-color,border-color,color,box-shadow,transform] outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(12_10_28/0.18),0_6px_16px_rgb(12_10_28/0.14)] hover:bg-primary/90",
+          "border-2 border-border bg-primary text-primary-foreground shadow-[3px_3px_0_0_var(--shadow-ink)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_var(--shadow-ink)]",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 shadow-[0_1px_2px_rgb(12_10_28/0.14)]",
+          "border-2 border-border bg-background text-foreground shadow-[3px_3px_0_0_var(--shadow-ink)] hover:bg-foreground hover:text-background hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_var(--shadow-ink)]",
         outline:
-          "border border-border bg-card text-foreground shadow-[0_1px_1px_rgb(12_10_28/0.04)] hover:border-primary/40 hover:bg-accent hover:text-accent-foreground",
+          "border-2 border-border bg-card text-foreground hover:bg-foreground hover:text-background",
         secondary:
-          "border border-border/80 bg-secondary text-secondary-foreground hover:border-primary/25 hover:bg-secondary/70",
-        ghost: "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border-2 border-border bg-muted text-foreground hover:bg-accent",
+        ghost:
+          "text-foreground hover:bg-accent",
+        link:
+          "text-foreground underline decoration-2 underline-offset-4 hover:bg-accent",
       },
       size: {
         default: "h-8 px-3.5 text-xs",
