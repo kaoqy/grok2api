@@ -493,6 +493,7 @@ export function EgressNodes({ title, clearanceMode }: { title: string; clearance
                   <SelectTrigger id="egress-import-scope"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="grok_build">{t("settings.egress.scopeBuild")}</SelectItem>
+                    <SelectItem value="grok_shared">{t("settings.egress.scopeShared")}</SelectItem>
                     <SelectItem value="grok_web">{t("settings.egress.scopeWeb")}</SelectItem>
                     <SelectItem value="grok_console">{t("console.name")}</SelectItem>
                     <SelectItem value="grok_web_asset">{t("settings.egress.scopeWebAsset")}</SelectItem>
