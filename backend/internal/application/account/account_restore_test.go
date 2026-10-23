@@ -25,12 +25,13 @@ func TestRestoreAutoDisabledAccountAfterQuotaRefresh(t *testing.T) {
 		EncryptedAccessToken: "x", Enabled: true, AuthStatus: accountdomain.AuthStatusActive,
 	})
 
-	// 网关因为连续缺少 thinking 自动停用账号：enabled=false + 专用标记。
-	if err := repo.UpdateHealth(ctx, auto.ID, accountdomain.ProviderBuild, 1, nil, accountdomain.LastErrorMissingThinkingDisabled, false); err != nil {
-		t.Fatal(err)
-	}
+	// 网关因为连续缺少 thinking 自动停用账号：enabled=false + 自动停用标记。
 	disabled := false
-	if _, err := repo.UpdateMany(ctx, accountdomain.ProviderBuild, []uint64{auto.ID}, repository.AccountUpdates{Enabled: &disabled}); err != nil {
+	autoDisabled := true
+	autoReason := accountdomain.DisabledReasonMissingThinking
+	if _, err := repo.UpdateMany(ctx, accountdomain.ProviderBuild, []uint64{auto.ID}, repository.AccountUpdates{
+		Enabled: &disabled, AutoDisabled: &autoDisabled, DisabledReason: &autoReason,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	// 运维手动停用的账号没有任何自动标记。

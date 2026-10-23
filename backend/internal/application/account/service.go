@@ -809,7 +809,15 @@ func (s *Service) BatchUpdate(ctx context.Context, providerValue accountdomain.P
 	if input.Name != nil {
 		return 0, invalidInput("批量更新不支持修改账号名称")
 	}
-	updated, err := s.accounts.UpdateMany(ctx, providerValue, ids, repository.AccountUpdates{Enabled: input.Enabled, Priority: input.Priority, MaxConcurrent: input.MaxConcurrent, MinimumRemaining: input.MinimumRemaining})
+	updates := repository.AccountUpdates{Enabled: input.Enabled, Priority: input.Priority, MaxConcurrent: input.MaxConcurrent, MinimumRemaining: input.MinimumRemaining}
+	if input.Enabled != nil {
+		// 批量启停同样是管理员意图，清除自动停用标记。
+		manual := false
+		empty := ""
+		updates.AutoDisabled = &manual
+		updates.DisabledReason = &empty
+	}
+	updated, err := s.accounts.UpdateMany(ctx, providerValue, ids, updates)
 	if err != nil {
 		return 0, mapRepositoryError(err)
 	}
@@ -2229,6 +2237,10 @@ func (s *Service) Update(ctx context.Context, id uint64, input UpdateInput) (Vie
 	}
 	if input.Enabled != nil {
 		value.Enabled = *input.Enabled
+		// 管理员手动启停是明确意图：清除自动停用标记，
+		// 否则账号可能在额度刷新后被自动重新启用。
+		value.AutoDisabled = false
+		value.DisabledReason = ""
 	}
 	if input.Priority != nil {
 		value.Priority = *input.Priority
@@ -2820,15 +2832,21 @@ func (s *Service) refreshBilling(ctx context.Context, id uint64) (accountdomain.
 	return billing, nil
 }
 
-// restoreAutoDisabledAccount 把被网关自动停用的账号重新放回轮换池。
-// 自动停用只是标记（enabled=false），账号并没有被删除，所以额度刷新成功后
-// 必须重新启用，否则它将永远无法继续调用。手动停用的账号保持原状。
+// restoreAutoDisabledAccount 把被系统自动停用的账号重新放回轮换池。
+//
+// 自动停用只是标记（enabled=false），账号并没有被删除：额度刷新成功后它必须
+// 重新启用，否则将永远无法继续调用。管理员手动停用的账号没有 AutoDisabled
+// 标记，会保持停用。
 func (s *Service) restoreAutoDisabledAccount(ctx context.Context, value accountdomain.Credential) {
-	if value.Enabled || value.LastError != accountdomain.LastErrorMissingThinkingDisabled {
+	if value.Enabled || !value.AutoDisabled {
 		return
 	}
 	enabled := true
-	if _, err := s.accounts.UpdateMany(ctx, value.Provider, []uint64{value.ID}, repository.AccountUpdates{Enabled: &enabled}); err != nil {
+	autoDisabled := false
+	empty := ""
+	if _, err := s.accounts.UpdateMany(ctx, value.Provider, []uint64{value.ID}, repository.AccountUpdates{
+		Enabled: &enabled, AutoDisabled: &autoDisabled, DisabledReason: &empty,
+	}); err != nil {
 		s.logger.Warn("account_auto_restore_failed", "account_id", value.ID, "error", err)
 		return
 	}
@@ -2836,7 +2854,7 @@ func (s *Service) restoreAutoDisabledAccount(ctx context.Context, value accountd
 		s.logger.Warn("account_auto_restore_health_reset_failed", "account_id", value.ID, "error", err)
 		return
 	}
-	s.logger.Info("account_auto_restored", "account_id", value.ID, "provider", value.Provider)
+	s.logger.Info("account_auto_restored", "account_id", value.ID, "provider", value.Provider, "reason", value.DisabledReason)
 }
 
 func (s *Service) fetchAndSaveBilling(ctx context.Context, id uint64) (accountdomain.Credential, accountdomain.Billing, error) {

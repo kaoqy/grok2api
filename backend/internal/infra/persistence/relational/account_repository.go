@@ -1614,6 +1614,12 @@ func (r *AccountRepository) UpdateMany(ctx context.Context, providerValue accoun
 	if updates.MinimumRemaining != nil {
 		values["minimum_remaining"] = *updates.MinimumRemaining
 	}
+	if updates.AutoDisabled != nil {
+		values["auto_disabled"] = *updates.AutoDisabled
+	}
+	if updates.DisabledReason != nil {
+		values["disabled_reason"] = *updates.DisabledReason
+	}
 	if len(values) == 0 {
 		return 0, nil
 	}
@@ -1863,7 +1869,12 @@ func (r *AccountRepository) DisableAutoCleanReauthCandidates(ctx context.Context
 		if !includeDisabled {
 			disable = disable.Where("enabled = ?", true)
 		}
-		result := disable.Update("enabled", false)
+		// 记录这是系统自动停用：账号留在库里，凭据一旦恢复即可自动启用。
+		result := disable.Updates(map[string]any{
+			"enabled":         false,
+			"auto_disabled":   true,
+			"disabled_reason": account.DisabledReasonReauthRequired,
+		})
 		if result.Error != nil {
 			return result.Error
 		}
@@ -2034,7 +2045,14 @@ func (r *AccountRepository) UpdateTokens(ctx context.Context, id uint64, accessT
 		if err := tx.Model(&accountCredentialModel{}).Where("account_id = ?", id).Updates(updates).Error; err != nil {
 			return err
 		}
-		return tx.Model(&accountModel{}).Where("id = ?", id).Updates(map[string]any{"auth_status": string(account.AuthStatusActive), "last_error": "", "reauth_marked_at": nil}).Error
+		// 凭据刷新成功意味着账号恢复可用：解除系统自动停用并重新放回轮换池。
+		// 管理员手动停用的账号（auto_disabled=false）保持停用。
+		return tx.Model(&accountModel{}).Where("id = ?", id).Updates(map[string]any{
+			"auth_status": string(account.AuthStatusActive), "last_error": "", "reauth_marked_at": nil,
+			"enabled": gorm.Expr("CASE WHEN auto_disabled = ? THEN ? ELSE enabled END", true, true),
+			"auto_disabled": gorm.Expr("CASE WHEN auto_disabled = ? THEN ? ELSE auto_disabled END", true, false),
+			"disabled_reason": gorm.Expr("CASE WHEN auto_disabled = ? THEN ? ELSE disabled_reason END", true, ""),
+		}).Error
 	}); err != nil {
 		return account.Credential{}, err
 	}
@@ -2597,7 +2615,10 @@ func (r *AccountRepository) ResetQuotaState(ctx context.Context, provider accoun
 		if len(recovered) == 0 {
 			return nil
 		}
-		return tx.Model(&accountModel{}).Where("id IN ? AND enabled = ?", recovered, false).Update("enabled", true).Error
+		// 额度恢复后自动重新启用被系统停用的账号；手动停用的账号保持停用。
+		return tx.Model(&accountModel{}).
+			Where("id IN ? AND enabled = ? AND auto_disabled = ?", recovered, false, true).
+			Updates(map[string]any{"enabled": true, "auto_disabled": false, "disabled_reason": ""}).Error
 	})
 	if err == nil {
 		r.notifyInvalidation(ctx, repository.InvalidationEvent{Kind: repository.InvalidationAccountRecoveryChanged, Provider: provider})

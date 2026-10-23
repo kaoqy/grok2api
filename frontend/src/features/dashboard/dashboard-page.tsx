@@ -65,9 +65,9 @@ export function DashboardPage() {
   return (
     <div className="space-y-5">
       <div className="space-y-5">
-        <header className="flex flex-col gap-4 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-4 border-b-2 border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.025em]">{t("dashboard.title")}</h1>
+            <h1 className="text-[24px] font-bold leading-8 tracking-[-0.03em]">{t("dashboard.title")}</h1>
             <p className="mt-1 text-[13px] text-muted-foreground">{t("dashboard.welcome", { name: admin?.username ?? "Operator" })}</p>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2">

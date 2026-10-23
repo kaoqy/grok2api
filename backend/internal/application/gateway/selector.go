@@ -1242,7 +1242,11 @@ func (s *Selector) markMissingThinking(ctx context.Context, credential account.C
 	inCooldown := credential.CooldownUntil != nil && now.Before(*credential.CooldownUntil)
 	if isMissingThinkingStrike(credential.LastError) && !inCooldown {
 		disabled := false
-		if _, err := s.accounts.UpdateMany(ctx, credential.Provider, []uint64{credential.ID}, repository.AccountUpdates{Enabled: &disabled}); err != nil {
+		autoDisabled := true
+		disabledReason := account.DisabledReasonMissingThinking
+		if _, err := s.accounts.UpdateMany(ctx, credential.Provider, []uint64{credential.ID}, repository.AccountUpdates{
+			Enabled: &disabled, AutoDisabled: &autoDisabled, DisabledReason: &disabledReason,
+		}); err != nil {
 			return missingThinkingPenaltyUnchanged, err
 		}
 		healthErr := s.accounts.UpdateHealth(ctx, credential.ID, credential.Provider, credential.FailureCount, nil, lastErrorMissingThinkingDisabled, false)

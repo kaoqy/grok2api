@@ -34,6 +34,10 @@ type accountModel struct {
 	TeamID      string `gorm:"size:255;check:chk_accounts_team_id,length(team_id) <= 255"`
 	SourceKey   string `gorm:"size:512;not null;check:chk_accounts_source_key,length(trim(source_key)) BETWEEN 1 AND 512;index:idx_accounts_provider_source,priority:2"`
 	Enabled     bool   `gorm:"not null"`
+	// AutoDisabled 标记账号由系统自动停用；手动停用的账号该列为 false。
+	AutoDisabled bool `gorm:"not null;default:false"`
+	// DisabledReason 保存自动停用原因，便于恢复时判断是否重新启用。
+	DisabledReason string `gorm:"size:64;not null;default:''"`
 	AuthStatus  string `gorm:"size:32;not null;check:chk_accounts_auth_status,auth_status IN ('active','reauthRequired')"`
 	// ReauthMarkedAt 进入 reauthRequired 的时刻；active 时为 NULL。
 	ReauthMarkedAt   *time.Time

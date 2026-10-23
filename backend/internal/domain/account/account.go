@@ -118,6 +118,15 @@ const (
 	LastErrorMissingThinkingDisabled = "missing_thinking_disabled"
 )
 
+// DisabledReason values explain why the system parked an account. An account
+// with AutoDisabled set is restored automatically once the reason clears; an
+// account the operator disabled by hand keeps AutoDisabled false and stays off.
+const (
+	DisabledReasonQuotaExhausted = "quota_exhausted"
+	DisabledReasonMissingThinking = "missing_thinking"
+	DisabledReasonReauthRequired  = "reauth_required"
+)
+
 // NormalizeHealthMarker admits only durable non-sensitive health markers.
 func NormalizeHealthMarker(value string) string {
 	switch value {
@@ -167,8 +176,13 @@ type Credential struct {
 	LastRefreshErrorMessage      string
 	LastRefreshErrorResponse     string
 	RefreshPermanent             bool
-	Enabled                      bool
-	AuthStatus                   AuthStatus
+	Enabled bool
+	// AutoDisabled 表示账号是被系统自动停用的，而不是管理员手动停用。
+	// 自动停用的账号在凭据或额度恢复后可以被重新启用；手动停用的账号保持停用。
+	AutoDisabled bool
+	// DisabledReason 记录自动停用的原因，便于管理端说明账号为何不可用。
+	DisabledReason string
+	AuthStatus    AuthStatus
 	// ReauthMarkedAt 仅在切入 reauthRequired 时写入；恢复 active 时清空。自动清理以该时刻为 minAge 锚点。
 	ReauthMarkedAt   *time.Time
 	Priority         int

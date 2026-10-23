@@ -13,6 +13,11 @@ type AccountUpdates struct {
 	Priority         *int
 	MaxConcurrent    *int
 	MinimumRemaining *float64
+	// AutoDisabled 与 DisabledReason 一起记录自动停用状态。
+	// AutoDisabled 为 nil 表示不修改；为 true 表示系统自动停用，
+	// 为 false 表示这是管理员的手动停用，必须保持停用。
+	AutoDisabled   *bool
+	DisabledReason *string
 }
 
 type AccountUpsertResult struct {

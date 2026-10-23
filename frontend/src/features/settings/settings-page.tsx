@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EgressNodes } from "@/features/settings/egress-nodes";
+import { ConfigBackupPanel } from "@/features/backup/config-backup-panel";
 import { VersionUpdateSection } from "@/features/system/version-update";
 import { isByteSizeUnit, isDurationUnit, MAX_ROUTING_ATTEMPTS, type ByteSizeValue, type DurationValue, UNLIMITED_ROUTING_ATTEMPTS } from "@/features/settings/settings-model";
 import { useSettings } from "@/features/settings/use-settings";
@@ -254,6 +255,7 @@ export function SettingsPage() {
           </SettingsPane>
 
           <SettingsPane value="about">
+            <ConfigBackupPanel />
             <VersionUpdateSection />
           </SettingsPane>
           </div>

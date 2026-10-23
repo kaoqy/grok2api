@@ -74,12 +74,12 @@ export function VersionUpdateSection() {
 
   return (
     <div className="w-full space-y-8">
-      <section className="space-y-3">
-        <div className="flex min-h-8 items-center px-1">
-          <h2 className="text-sm font-medium tracking-tight">{t("updates.title")}</h2>
+      <section className="rounded-xl border-2 border-border bg-card px-5 py-[18px] shadow-float">
+        <div className="flex min-h-7 items-center pb-1">
+          <h2 className="text-[12px] font-bold uppercase tracking-[0.08em] text-foreground">{t("updates.title")}</h2>
         </div>
-        <div className="flex items-start gap-3 rounded-md bg-amber-500/10 px-4 py-3">
-          <Info className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300" />
+        <div className="mt-3 flex items-start gap-3 rounded-lg border-2 border-dashed border-border bg-muted px-4 py-3">
+          <Info className="mt-0.5 size-4 shrink-0" />
           <div className="min-w-0">
             <p className="text-xs font-medium">{t("updates.noteTitle")}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">{t("updates.noteDescription")}</p>
@@ -99,7 +99,7 @@ export function VersionUpdateSection() {
           </VersionField>
           <VersionField label={t("updates.statusLabel")} description={t("updates.statusLabelHelp")}>
             <VersionValue>
-              {version?.status ? <span className={cn("size-1.5 shrink-0 rounded-full bg-muted-foreground", version.status === "up_to_date" && "bg-emerald-500", version.status === "update_available" && "bg-amber-500", version.status === "check_failed" && "bg-destructive")} /> : null}
+              {version?.status ? <span className={cn("size-1.5 shrink-0 rounded-full bg-muted-foreground", version.status === "up_to_date" && "bg-foreground", version.status === "update_available" && "bg-foreground", version.status === "check_failed" && "bg-foreground")} /> : null}
               <span>{version ? t(`updates.status.${version.status}`) : t("common.loading")}</span>
             </VersionValue>
           </VersionField>
@@ -107,7 +107,7 @@ export function VersionUpdateSection() {
             <VersionValue>{version?.checkedAt ? formatDateTime(version.checkedAt, i18n.language) : t("updates.neverChecked")}</VersionValue>
           </VersionField>
         </div>
-        {error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
+        {error ? <p className="text-xs font-semibold leading-5 text-destructive">{error}</p> : null}
       </section>
 
       {version?.releaseNotes || version?.releaseUrl ? (

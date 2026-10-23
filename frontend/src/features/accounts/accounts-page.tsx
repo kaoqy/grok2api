@@ -95,6 +95,12 @@ type EgressGroup = {
   label: string;
   proxyDisplay?: string;
   filterValue?: string;
+  /** 出口作用范围：同一个代理地址可能同时服务 Build 与 Web。 */
+  scopes: EgressScope[];
+  /** 分组内的账号状态统计，用于一眼看出这个出口的健康度。 */
+  total: number;
+  enabled: number;
+  healthy: boolean;
   accounts: AccountDTO[];
 };
 
@@ -131,8 +137,8 @@ function AccountRows({
         const collapsed = collapsedKeys.has(group.key);
         return (
           <Fragment key={group.key}>
-            <TableRow className="bg-muted hover:bg-muted">
-              <TableCell colSpan={colSpan} className="px-3 py-2">
+            <TableRow className="sticky top-0 z-10 bg-muted hover:bg-muted">
+              <TableCell colSpan={colSpan} className="border-b-2 border-border px-3 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="ghost" size="icon" className="size-6" onClick={() => onToggleGroup(group.key)} aria-label={group.label}>
                     {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
@@ -140,7 +146,15 @@ function AccountRows({
                   <Network className="size-3.5 shrink-0" />
                   <span className="text-xs font-bold uppercase tracking-wide">{group.label}</span>
                   {group.proxyDisplay ? <span className="max-w-[22rem] truncate font-mono text-[11px] text-muted-foreground">{group.proxyDisplay}</span> : null}
-                  <Badge variant="secondary" className="tabular-nums">{group.accounts.length}</Badge>
+                  {group.scopes.map((scope) => (
+                    <Badge key={scope} variant="outline" className="text-[10px]">{scopeLabel(scope)}</Badge>
+                  ))}
+                  <Badge variant="secondary" className="tabular-nums">
+                    {group.enabled}/{group.total}
+                  </Badge>
+                  {!group.healthy ? (
+                    <Badge variant="destructive" className="text-[10px]">{t("accounts.egressGroupUnhealthy")}</Badge>
+                  ) : null}
                   {group.filterValue ? (
                     <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => onFilterGroup(group.filterValue as string, group.label)}>
                       {t("accounts.egressOnlyFilter")}
@@ -155,6 +169,24 @@ function AccountRows({
       })}
     </TableBody>
   );
+}
+
+// scopeLabel 把出口作用域翻译成短标签，用于分组表头。
+function scopeLabel(scope: EgressScope): string {
+  switch (scope) {
+    case "grok_build":
+      return "Build";
+    case "grok_web":
+      return "Web";
+    case "grok_console":
+      return "Console";
+    case "grok_web_asset":
+      return "Web 资源";
+    case "grok_console_asset":
+      return "Console 资源";
+    default:
+      return scope;
+  }
 }
 
 function isAbortError(error: unknown): boolean {
@@ -1120,13 +1152,23 @@ export function AccountsPage() {
           label: node?.name ?? (auto ? t("accounts.egressAuto") : t("accounts.egressUnbound")),
           proxyDisplay: node?.proxyDisplay,
           filterValue: account.egressNodeId ? `node:${account.egressNodeId}` : auto ? undefined : "unbound",
+          scopes: [],
+          total: 0,
+          enabled: 0,
+          healthy: true,
           accounts: [],
         };
         groups.set(key, group);
       }
       group.accounts.push(account);
+      group.total += 1;
+      if (account.enabled) group.enabled += 1;
+      if (node?.probeStatus === "unhealthy") group.healthy = false;
+      if (node && !group.scopes.includes(node.scope)) group.scopes.push(node.scope);
     }
     return Array.from(groups.values()).sort((left, right) => {
+      // 不健康的出口排在前面：它们需要先被处理。
+      if (left.healthy !== right.healthy) return left.healthy ? 1 : -1;
       const leftNamed = left.filterValue?.startsWith("node:") ?? false;
       const rightNamed = right.filterValue?.startsWith("node:") ?? false;
       if (leftNamed !== rightNamed) return leftNamed ? -1 : 1;
@@ -1326,9 +1368,9 @@ export function AccountsPage() {
 
   return (
     <div className="space-y-5">
-      <header className="flex min-h-8 items-center">
+      <header className="flex min-h-8 items-end border-b-2 border-border pb-4">
         <div>
-          <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.025em]">{t("accounts.title")}</h1>
+          <h1 className="text-[24px] font-bold leading-8 tracking-[-0.03em]">{t("accounts.title")}</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">{t("accounts.description")}</p>
         </div>
       </header>
@@ -2280,9 +2322,32 @@ function AccountTypeText({ label, title, variant }: { label: string; title?: str
   return <span title={title ?? label} className={cn("max-w-32 truncate text-xs font-medium", variant === "free" ? "text-emerald-700 dark:text-emerald-300" : "text-primary")}>{label}</span>;
 }
 
+// autoDisabledReasonKey 把后端的自动停用原因翻译成一句人话。
+function autoDisabledReasonKey(reason?: string): string {
+  switch (reason) {
+    case "missing_thinking":
+      return "accounts.autoDisabledReasonMissingThinking";
+    case "reauth_required":
+      return "accounts.autoDisabledReasonReauthRequired";
+    case "quota_exhausted":
+      return "accounts.autoDisabledReasonQuotaExhausted";
+    default:
+      return "accounts.autoDisabledReasonUnknown";
+  }
+}
+
 function AccountStatus({ account }: { account: AccountDTO }) {
   const { t, i18n } = useTranslation();
   if (!account.enabled) {
+    // 自动停用与手动停用要一眼能分：前者额度刷新后会自动恢复。
+    if (account.autoDisabled) {
+      const reason = t(autoDisabledReasonKey(account.disabledReason));
+      return (
+        <StatusTooltip content={reason}>
+          <Badge variant="secondary" className="border-dashed">{t("accounts.statusAutoDisabled")}</Badge>
+        </StatusTooltip>
+      );
+    }
     return <Badge variant="outline" className="border-dashed text-muted-foreground">{t("accounts.statusDisabled")}</Badge>;
   }
   if (account.authStatus === "reauthRequired") {

@@ -292,6 +292,8 @@ type accountResponse struct {
 	UserID                     string                  `json:"userId,omitempty"`
 	TeamID                     string                  `json:"teamId,omitempty"`
 	Enabled                    bool                    `json:"enabled"`
+	AutoDisabled               bool                    `json:"autoDisabled"`
+	DisabledReason             string                  `json:"disabledReason,omitempty"`
 	AuthStatus                 string                  `json:"authStatus"`
 	ExpiresAt                  *time.Time              `json:"expiresAt,omitempty"`
 	Refreshable                bool                    `json:"refreshable"`
@@ -1505,7 +1507,8 @@ func newAccountResponse(value accountapp.View) accountResponse {
 	result := accountResponse{
 		ID: c.ID, Provider: string(c.Provider), AuthType: string(c.AuthType), WebTier: string(c.WebTier),
 		WebTierSyncedAt: c.WebTierSyncedAt, WebNSFWEnabledAt: c.WebNSFWEnabledAt, WebTermsAcceptedAt: c.WebTermsAcceptedAt, Name: c.Name, Email: c.Email, UserID: c.UserID, TeamID: c.TeamID,
-		Enabled: c.Enabled, AuthStatus: string(c.AuthStatus), Refreshable: c.EncryptedRefreshToken != "",
+		Enabled: c.Enabled, AutoDisabled: c.AutoDisabled, DisabledReason: c.DisabledReason,
+		AuthStatus: string(c.AuthStatus), Refreshable: c.EncryptedRefreshToken != "",
 		RefreshDueAt: c.RefreshDueAt, LastRefreshAt: c.LastRefreshAt,
 		RefreshFailures: c.RefreshFailureCount, LastRefreshErrorStatus: c.LastRefreshErrorStatus, LastRefreshError: c.LastRefreshErrorCode, LastRefreshErrorMessage: c.LastRefreshErrorMessage, LastRefreshErrorResponse: c.LastRefreshErrorResponse,
 		Priority: c.Priority, MaxConcurrent: c.MaxConcurrent, MinimumRemaining: c.MinimumRemaining,

@@ -257,9 +257,9 @@ export function ClientKeysPage() {
   }
   return (
     <div className="space-y-5">
-      <header className="flex min-h-8 items-end border-b pb-4">
+      <header className="flex min-h-8 items-end border-b-2 border-border pb-4">
         <div>
-          <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.025em]">{t("keys.title")}</h1>
+          <h1 className="text-[24px] font-bold leading-8 tracking-[-0.03em]">{t("keys.title")}</h1>
           <p className="mt-1 text-[13px] text-muted-foreground">{t("keys.description")}</p>
         </div>
       </header>

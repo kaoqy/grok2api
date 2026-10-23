@@ -15,7 +15,7 @@ export function DataTableShell({ toolbar, children, footer, className }: DataTab
       <div className="flex min-h-12 flex-wrap items-center justify-between gap-3">
         {toolbar}
       </div>
-      <div className="min-w-0 overflow-hidden rounded-lg border bg-card shadow-panel">
+      <div className="min-w-0 overflow-hidden rounded-xl border-2 border-border bg-card shadow-float">
         {children}
       </div>
       {footer ? (

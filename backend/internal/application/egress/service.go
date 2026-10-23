@@ -78,6 +78,8 @@ type QualityProber interface {
 
 const (
 	maxProxyURLBytes         = 8192
+	// maxBackupProxyProfiles 限制单次备份能带出的代理档案数量。
+	maxBackupProxyProfiles   = 1000
 	maxCloudflareCookieBytes = 16 << 10
 	ProxyAccountPlaceholder  = "{account}"
 	proxyAccountSentinel     = "grok2api_account_placeholder"
@@ -571,6 +573,59 @@ func (s *Service) ProxyURL(ctx context.Context, id uint64) (string, error) {
 		return "", err
 	}
 	return NormalizeProxyURL(proxyURL)
+}
+
+// BackupNodes 返回带明文代理地址的节点快照，供配置备份使用。
+// 只有管理员显式导出的备份文件才会包含这些凭据。
+func (s *Service) BackupNodes(ctx context.Context) ([]domain.BackupNode, error) {
+	scopes := []domain.Scope{domain.ScopeBuild, domain.ScopeWeb, domain.ScopeConsole, domain.ScopeWebAsset, domain.ScopeConsoleAsset}
+	result := make([]domain.BackupNode, 0, 64)
+	for _, scope := range scopes {
+		values, err := s.repository.ListEgressNodes(ctx, scope, repository.SortQuery{Field: "name", Direction: repository.SortAscending})
+		if err != nil {
+			return nil, err
+		}
+		for _, value := range values {
+			proxyURL := ""
+			if strings.TrimSpace(value.EncryptedProxyURL) != "" {
+				decrypted, decryptErr := s.cipher.Decrypt(value.EncryptedProxyURL)
+				if decryptErr != nil {
+					return nil, decryptErr
+				}
+				proxyURL = decrypted
+			}
+			result = append(result, domain.BackupNode{
+				Name: value.Name, Scope: value.Scope, Enabled: value.Enabled, ProxyPool: value.ProxyPool,
+				ProxyURL: proxyURL, ProxyProfileName: value.ProxyProfileName, UserAgent: value.UserAgent,
+				AccountCapacity: value.AccountCapacity, SourceKey: value.SourceKey,
+			})
+		}
+	}
+	return result, nil
+}
+
+// BackupProxyProfiles 返回带明文代理地址的代理档案快照，供配置备份使用。
+func (s *Service) BackupProxyProfiles(ctx context.Context) ([]domain.BackupProxyProfile, error) {
+	if s.proxyProfiles == nil {
+		return nil, nil
+	}
+	values, _, err := s.proxyProfiles.ListEgressProxyProfiles(ctx, repository.PageQuery{Offset: 0, Limit: maxBackupProxyProfiles})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.BackupProxyProfile, 0, len(values))
+	for _, value := range values {
+		proxyURL := ""
+		if strings.TrimSpace(value.EncryptedProxyURL) != "" {
+			decrypted, decryptErr := s.cipher.Decrypt(value.EncryptedProxyURL)
+			if decryptErr != nil {
+				return nil, decryptErr
+			}
+			proxyURL = decrypted
+		}
+		result = append(result, domain.BackupProxyProfile{Name: value.Name, ProxyURL: proxyURL})
+	}
+	return result, nil
 }
 
 func (s *Service) ListProxyProfiles(ctx context.Context, page, pageSize int, search string) ([]domain.PublicProxyProfile, int64, error) {

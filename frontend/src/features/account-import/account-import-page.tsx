@@ -168,15 +168,15 @@ export function AccountImportPage() {
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-2xl">
           <div className="mb-2 flex items-center gap-2">
-            <span className="inline-flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground"><Cable className="size-4" /></span>
-            <Badge variant="outline" className="rounded-md border-primary/25 bg-primary/8 text-primary">Grok Build</Badge>
+            <span className="inline-flex size-8 items-center justify-center rounded-lg border-2 border-border bg-foreground text-background shadow-[2px_2px_0_0_var(--shadow-ink)]"><Cable className="size-4" /></span>
+            <Badge variant="outline">Grok Build</Badge>
           </div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t("accountImport.title")}</h1>
+          <h1 className="text-2xl font-bold tracking-[-0.025em]">{t("accountImport.title")}</h1>
           <p className="mt-1.5 max-w-[68ch] text-sm leading-6 text-muted-foreground">{t("accountImport.description")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className={cn("flex h-8 items-center gap-2 rounded-md border px-3 text-xs", keyLoading ? "border-border bg-secondary/55 text-muted-foreground" : configured ? "border-success/25 bg-success/8 text-success" : "border-warn/25 bg-warn/8 text-warn")}>
-            {keyLoading ? <Spinner className="size-3" /> : <span className={cn("size-2 rounded-full", configured ? "bg-success" : "bg-warn")} />}
+          <div className={cn("flex h-8 items-center gap-2 rounded-lg border-2 px-3 text-xs font-semibold", keyLoading ? "border-border bg-muted text-muted-foreground" : configured ? "border-foreground bg-foreground text-background" : "border-dashed border-foreground bg-card text-foreground")}>
+            {keyLoading ? <Spinner className="size-3" /> : <span className={cn("size-2 rounded-full", configured ? "bg-background" : "bg-foreground")} />}
             {keyLoading ? t("common.loading") : configured ? t("accountImport.keyReady") : t("accountImport.keyMissing")}
           </div>
           <Button size="sm" variant="outline" onClick={() => void statusQuery.refetch()} disabled={statusQuery.isFetching}>

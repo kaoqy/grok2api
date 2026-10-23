@@ -110,6 +110,26 @@ type PublicProxyProfile struct {
 	UpdatedAt        time.Time
 }
 
+// BackupNode 是配置备份中的代理节点快照。
+// ProxyURL 是明文地址，只在管理员显式导出时生成。
+type BackupNode struct {
+	Name             string `json:"name"`
+	Scope            Scope  `json:"scope"`
+	Enabled          bool   `json:"enabled"`
+	ProxyPool        bool   `json:"proxyPool"`
+	ProxyURL         string `json:"proxyUrl,omitempty"`
+	ProxyProfileName string `json:"proxyProfileName,omitempty"`
+	UserAgent        string `json:"userAgent,omitempty"`
+	AccountCapacity  int    `json:"accountCapacity"`
+	SourceKey        string `json:"sourceKey,omitempty"`
+}
+
+// BackupProxyProfile 是配置备份中的物理代理档案快照。
+type BackupProxyProfile struct {
+	Name     string `json:"name"`
+	ProxyURL string `json:"proxyUrl,omitempty"`
+}
+
 type ProbeStatus string
 
 const (
