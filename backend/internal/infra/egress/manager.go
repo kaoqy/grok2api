@@ -2292,7 +2292,8 @@ func (m *Manager) RefreshDueClearances(ctx context.Context, force bool) error {
 }
 
 func isGrokWebScope(scope domain.Scope) bool {
-	return scope == domain.ScopeWeb || scope == domain.ScopeWebAsset || scope == domain.ScopeConsole
+	// 共用节点与 Web 节点共享浏览器身份，因此同样支持 Clearance。
+	return scope == domain.ScopeWeb || scope == domain.ScopeWebAsset || scope == domain.ScopeConsole || scope == domain.ScopeShared
 }
 
 func allEgressScopes() []domain.Scope {
