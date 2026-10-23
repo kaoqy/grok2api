@@ -63,12 +63,39 @@ func TestCapAutomaticAssignmentShareAppliesFraction(t *testing.T) {
 	}
 }
 
-func TestCapAutomaticAssignmentSharePreservesOtherProviderLoad(t *testing.T) {
+func TestCapAutomaticAssignmentShareCountsPerProvider(t *testing.T) {
+	// 绑定额度按 Provider 分别核算：其它渠道的绑定量不再占用本渠道的额度。
 	nodes := []domain.Node{{ID: 1, AccountCapacity: 0, AssignedAccountCount: 30}}
 	accounts := makeActiveAccounts(100)
 	got := capAutomaticAssignmentShare(nodes, accounts, 0.30)
-	if got[0].AccountCapacity != 60 {
-		t.Fatalf("30 reserved slots plus 30 active provider slots = %#v", got[0])
+	if got[0].AccountCapacity != 30 {
+		t.Fatalf("per-provider capacity should follow the share only: %#v", got[0])
+	}
+}
+
+func TestScopeSupportsProviderAcceptsSharedScope(t *testing.T) {
+	if !scopeSupportsProvider(domain.ScopeShared, accountdomain.ProviderBuild) {
+		t.Fatal("shared scope must serve Build accounts")
+	}
+	if !scopeSupportsProvider(domain.ScopeShared, accountdomain.ProviderWeb) {
+		t.Fatal("shared scope must serve Web accounts")
+	}
+	if scopeSupportsProvider(domain.ScopeShared, accountdomain.ProviderConsole) != domain.SupportsScope(domain.ScopeShared, domain.ScopeConsole) {
+		t.Fatal("console scope support must follow the shared scope contract")
+	}
+	if scopeSupportsProvider(domain.ScopeWeb, accountdomain.ProviderBuild) {
+		t.Fatal("a Web-only scope must not serve Build accounts")
+	}
+}
+
+func TestDomainSupportsScopeAllowsSharedRequests(t *testing.T) {
+	for _, scope := range []domain.Scope{domain.ScopeBuild, domain.ScopeWeb, domain.ScopeWebAsset, domain.ScopeConsole, domain.ScopeConsoleAsset} {
+		if !domain.SupportsScope(domain.ScopeShared, scope) {
+			t.Fatalf("shared scope must serve %s", scope)
+		}
+	}
+	if !domain.ServesBuild(domain.ScopeShared) {
+		t.Fatal("shared scope carries Build traffic")
 	}
 }
 

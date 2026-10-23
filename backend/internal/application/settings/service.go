@@ -89,6 +89,26 @@ type MediaConfig struct {
 	MaxTotalBytes           int64
 	CleanupThresholdPercent int
 	CleanupInterval         string
+	// S3 描述图片转存到对象存储的可编辑参数。
+	S3 S3Config
+}
+
+// S3Config 是管理端可编辑的 S3 转存输入。
+// SecretKey 与 SessionToken 是只写字段，留空时保留已保存的密钥。
+type S3Config struct {
+	Enabled                bool
+	Bucket                 string
+	Region                 string
+	Endpoint               string
+	AccessKey              string
+	SecretKey              string
+	SessionToken           string
+	Prefix                 string
+	PathStyle              bool
+	PublicBaseURL          string
+	PublicRead             bool
+	SecretKeyConfigured    bool
+	SessionTokenConfigured bool
 }
 
 // FrontendConfig 是管理接口使用的公开 API 地址输入。
@@ -462,6 +482,12 @@ func applyDomainConfig(base config.Config, value settingsdomain.Config) config.C
 	base.Media.MaxTotalBytes = value.Media.MaxTotalBytes
 	base.Media.CleanupThresholdPercent = value.Media.CleanupThresholdPercent
 	base.Media.CleanupInterval = config.Duration(value.Media.CleanupInterval)
+	base.Media.S3 = config.S3MediaConfig{
+		Enabled: value.Media.S3.Enabled, Bucket: value.Media.S3.Bucket, Region: value.Media.S3.Region,
+		Endpoint: value.Media.S3.Endpoint, AccessKey: value.Media.S3.AccessKey, SecretKey: value.Media.S3.SecretKey,
+		SessionToken: value.Media.S3.SessionToken, Prefix: value.Media.S3.Prefix, PathStyle: value.Media.S3.PathStyle,
+		PublicBaseURL: value.Media.S3.PublicBaseURL, PublicRead: value.Media.S3.PublicRead,
+	}
 	base.Frontend.PublicAPIBaseURLOverride = strings.TrimSpace(value.Frontend.PublicAPIBaseURL)
 	segmentedEnabled := base.Routing.SegmentedSelectorEnabled
 	segmentedMinCandidates := base.Routing.SegmentedMinCandidates
@@ -559,6 +585,12 @@ func toDomainConfig(value config.Config) settingsdomain.Config {
 		Media: settingsdomain.MediaConfig{
 			MaxImageBytes: value.Media.MaxImageBytes, MaxTotalBytes: value.Media.MaxTotalBytes,
 			CleanupThresholdPercent: value.Media.CleanupThresholdPercent, CleanupInterval: value.Media.CleanupInterval.Value(),
+			S3: settingsdomain.S3Config{
+				Enabled: value.Media.S3.Enabled, Bucket: value.Media.S3.Bucket, Region: value.Media.S3.Region,
+				Endpoint: value.Media.S3.Endpoint, AccessKey: value.Media.S3.AccessKey, SecretKey: value.Media.S3.SecretKey,
+				SessionToken: value.Media.S3.SessionToken, Prefix: value.Media.S3.Prefix, PathStyle: value.Media.S3.PathStyle,
+				PublicBaseURL: value.Media.S3.PublicBaseURL, PublicRead: value.Media.S3.PublicRead,
+			},
 		},
 		Frontend: settingsdomain.FrontendConfig{
 			PublicAPIBaseURL: value.Frontend.PublicAPIBaseURLOverride,
@@ -613,6 +645,40 @@ func (s *Service) snapshotLocked() Snapshot {
 	}
 }
 
+// mergeS3Editable 合并 S3 转存配置。
+// 密钥与会话令牌为只写字段：输入为空时保留已保存的值。
+func mergeS3Editable(next *config.Config, current config.Config, input S3Config) error {
+	value := config.S3MediaConfig{
+		Enabled: input.Enabled, Bucket: strings.TrimSpace(input.Bucket), Region: strings.TrimSpace(input.Region),
+		Endpoint: strings.TrimSpace(input.Endpoint), AccessKey: strings.TrimSpace(input.AccessKey),
+		SecretKey: current.Media.S3.SecretKey, SessionToken: current.Media.S3.SessionToken,
+		Prefix: strings.TrimSpace(input.Prefix), PathStyle: input.PathStyle,
+		PublicBaseURL: strings.TrimSpace(input.PublicBaseURL), PublicRead: input.PublicRead,
+	}
+	if secret := strings.TrimSpace(input.SecretKey); secret != "" {
+		value.SecretKey = secret
+	}
+	if token := strings.TrimSpace(input.SessionToken); token != "" {
+		value.SessionToken = token
+	}
+	if value.Region == "" {
+		value.Region = "us-east-1"
+	}
+	if value.Enabled {
+		if value.Bucket == "" {
+			return errors.New("media.s3.bucket 不能为空")
+		}
+		if value.AccessKey == "" {
+			return errors.New("media.s3.accessKey 不能为空")
+		}
+		if strings.TrimSpace(value.SecretKey) == "" {
+			return errors.New("media.s3.secretKey 不能为空")
+		}
+	}
+	next.Media.S3 = value
+	return nil
+}
+
 func mergeEditable(current config.Config, input EditableConfig) (config.Config, error) {
 	if input.Audit.CommitDelayMS < 0 {
 		return config.Config{}, errors.New("audit.commitDelayMS 不能为负数")
@@ -654,6 +720,9 @@ func mergeEditable(current config.Config, input EditableConfig) (config.Config, 
 	next.Media.MaxImageBytes = input.Media.MaxImageBytes
 	next.Media.MaxTotalBytes = input.Media.MaxTotalBytes
 	next.Media.CleanupThresholdPercent = input.Media.CleanupThresholdPercent
+	if err := mergeS3Editable(&next, current, input.Media.S3); err != nil {
+		return config.Config{}, err
+	}
 	next.Frontend.PublicAPIBaseURLOverride = strings.TrimSpace(input.Frontend.PublicAPIBaseURL)
 	next.Routing.MaxAttempts = input.Routing.MaxAttempts
 	next.Routing.VideoMaxAttempts = input.Routing.VideoMaxAttempts
@@ -796,6 +865,14 @@ func toEditable(cfg config.Config) EditableConfig {
 		Media: MediaConfig{
 			MaxImageBytes: cfg.Media.MaxImageBytes, MaxTotalBytes: cfg.Media.MaxTotalBytes,
 			CleanupThresholdPercent: cfg.Media.CleanupThresholdPercent, CleanupInterval: cfg.Media.CleanupInterval.String(),
+			S3: S3Config{
+				Enabled: cfg.Media.S3.Enabled, Bucket: cfg.Media.S3.Bucket, Region: cfg.Media.S3.Region,
+				Endpoint: cfg.Media.S3.Endpoint, AccessKey: cfg.Media.S3.AccessKey,
+				SecretKeyConfigured:    strings.TrimSpace(cfg.Media.S3.SecretKey) != "",
+				SessionTokenConfigured: strings.TrimSpace(cfg.Media.S3.SessionToken) != "",
+				Prefix:                 cfg.Media.S3.Prefix, PathStyle: cfg.Media.S3.PathStyle,
+				PublicBaseURL: cfg.Media.S3.PublicBaseURL, PublicRead: cfg.Media.S3.PublicRead,
+			},
 		},
 		Frontend: FrontendConfig{
 			PublicAPIBaseURL: cfg.Frontend.PublicAPIBaseURLOverride,

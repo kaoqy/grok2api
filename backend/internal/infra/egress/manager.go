@@ -867,28 +867,35 @@ func (m *Manager) acquire(ctx context.Context, scope domain.Scope, affinity stri
 			}
 		}
 	}
-	for _, candidateScope := range fallbackScopes(scope) {
-		nodes, err := m.listNodes(ctx, candidateScope, now)
-		if err != nil {
-			return nil, false, err
-		}
-		candidateAvailable := make([]domain.Node, 0, len(nodes))
-		for _, node := range nodes {
-			if !node.Enabled {
-				continue
+	for _, tier := range fallbackScopeTiers(scope) {
+		candidateAvailable := make([]domain.Node, 0)
+		seen := make(map[uint64]struct{})
+		for _, candidateScope := range tier {
+			nodes, err := m.listNodes(ctx, candidateScope, now)
+			if err != nil {
+				return nil, false, err
 			}
-			// A fixed fallback is a reserved last resort, not another member of
-			// the primary pool. It is validated again immediately before use.
-			if _, reserved := reservedFallbackNodes[node.ID]; reserved {
-				continue
-			}
-			configured = true
-			proxyPool := m.isProxyPoolNode(node)
-			if node.CooldownUntil == nil || !now.Before(*node.CooldownUntil) || proxyPool {
-				if proxyPool {
-					node.Health, node.FailureCount, node.CooldownUntil, node.LastError = 1, 0, nil, ""
+			for _, node := range nodes {
+				if _, exists := seen[node.ID]; exists {
+					continue
 				}
-				candidateAvailable = append(candidateAvailable, node)
+				seen[node.ID] = struct{}{}
+				if !node.Enabled {
+					continue
+				}
+				// A fixed fallback is a reserved last resort, not another member of
+				// the primary pool. It is validated again immediately before use.
+				if _, reserved := reservedFallbackNodes[node.ID]; reserved {
+					continue
+				}
+				configured = true
+				proxyPool := m.isProxyPoolNode(node)
+				if node.CooldownUntil == nil || !now.Before(*node.CooldownUntil) || proxyPool {
+					if proxyPool {
+						node.Health, node.FailureCount, node.CooldownUntil, node.LastError = 1, 0, nil, ""
+					}
+					candidateAvailable = append(candidateAvailable, node)
+				}
 			}
 		}
 		if len(candidateAvailable) > 0 {
@@ -1315,20 +1322,28 @@ func (m *Manager) InvalidateOperationsConfig() {
 	m.operationsMu.Unlock()
 }
 
-func fallbackScopes(scope domain.Scope) []domain.Scope {
-	if scope == domain.ScopeWebAsset {
-		return []domain.Scope{domain.ScopeWebAsset, domain.ScopeWeb}
-	}
-	if scope == domain.ScopeConsoleAsset {
-		return []domain.Scope{domain.ScopeConsoleAsset, domain.ScopeConsole, domain.ScopeWeb}
-	}
-	if scope == domain.ScopeConsole {
+// fallbackScopeTiers 返回请求作用域可以使用的出口候选层级。
+// 同一层内的作用域可以互换：Build/Web 共用节点与各自的专用节点属于同一层，
+// 因此一个代理可以同时承接 Build 与 Web 的流量。
+// 不同层之间保持优先级：上一层全部不可用时才落到下一层。
+func fallbackScopeTiers(scope domain.Scope) [][]domain.Scope {
+	switch scope {
+	case domain.ScopeBuild:
+		return [][]domain.Scope{{domain.ScopeBuild, domain.ScopeShared}}
+	case domain.ScopeWeb:
+		return [][]domain.Scope{{domain.ScopeWeb, domain.ScopeShared}}
+	case domain.ScopeConsole:
 		// Console uses the same browser/clearance surface as Grok Web. A
 		// dedicated Console node is preferred, but a Web node is a safe and
 		// expected fallback for deployments that configure one shared pool.
-		return []domain.Scope{domain.ScopeConsole, domain.ScopeWeb}
+		return [][]domain.Scope{{domain.ScopeConsole, domain.ScopeShared}, {domain.ScopeWeb, domain.ScopeShared}}
+	case domain.ScopeWebAsset:
+		return [][]domain.Scope{{domain.ScopeWebAsset}, {domain.ScopeWeb, domain.ScopeShared}}
+	case domain.ScopeConsoleAsset:
+		return [][]domain.Scope{{domain.ScopeConsoleAsset}, {domain.ScopeConsole, domain.ScopeShared}, {domain.ScopeWeb, domain.ScopeShared}}
+	default:
+		return [][]domain.Scope{{scope}}
 	}
-	return []domain.Scope{scope}
 }
 
 func (m *Manager) selectNode(nodes []domain.Node, affinity string) domain.Node {
@@ -2281,7 +2296,7 @@ func isGrokWebScope(scope domain.Scope) bool {
 }
 
 func allEgressScopes() []domain.Scope {
-	return []domain.Scope{domain.ScopeBuild, domain.ScopeWeb, domain.ScopeConsole, domain.ScopeWebAsset, domain.ScopeConsoleAsset}
+	return domain.AllScopes()
 }
 
 func (m *Manager) isStickyProxyNode(value domain.Node) bool {

@@ -181,6 +181,9 @@ func (d *Database) initializeSchema(ctx context.Context) error {
 	if err := d.ensureEgressAssetScopeConstraints(ctx); err != nil {
 		return fmt.Errorf("迁移资源出口数据库约束: %w", err)
 	}
+	if err := d.ensureSharedEgressScopeConstraints(ctx); err != nil {
+		return fmt.Errorf("迁移共用出口数据库约束: %w", err)
+	}
 	if err := d.ensureAuditOperationConstraints(ctx); err != nil {
 		return fmt.Errorf("迁移请求审计操作约束: %w", err)
 	}
@@ -525,6 +528,15 @@ func (d *Database) ensureEgressAssetScopeConstraints(ctx context.Context) error 
 
 // ensureAuditOperationConstraints upgrades existing databases so Codex remote
 // compaction and Console voice operations can be recorded separately.
+// ensureSharedEgressScopeConstraints upgrades existing SQLite/PostgreSQL CHECK
+// definitions so a single proxy node can serve Build and Web at the same time.
+func (d *Database) ensureSharedEgressScopeConstraints(ctx context.Context) error {
+	return d.ensureNamedConstraints(ctx, []consoleConstraint{
+		{model: &egressNodeModel{}, table: "egress_nodes", name: "chk_egress_nodes_specific_scope"},
+		{model: &egressSubscriptionSourceModel{}, table: "egress_subscription_sources", name: "chk_egress_subscription_sources_scope"},
+	}, "grok_shared")
+}
+
 func (d *Database) ensureAuditOperationConstraints(ctx context.Context) error {
 	return d.ensureNamedConstraints(ctx, []consoleConstraint{
 		{model: &requestAuditModel{}, table: "request_audits", name: "chk_request_audits_operation"},

@@ -196,7 +196,7 @@ func (s *Service) ProbeQuality(ctx context.Context, nodeID uint64, input Quality
 	if err != nil {
 		return QualityProbeResult{}, err
 	}
-	if node.Scope != domain.ScopeBuild || strings.TrimSpace(node.EncryptedProxyURL) == "" {
+	if !domain.ServesBuild(node.Scope) || strings.TrimSpace(node.EncryptedProxyURL) == "" {
 		return QualityProbeResult{}, fmt.Errorf("%w: 质量探测仅支持已配置代理的 grok_build 节点", ErrInvalidInput)
 	}
 	if input.AccountID != 0 {
@@ -331,7 +331,7 @@ func (s *Service) QuarantineQualityLease(ctx context.Context, input QualityLease
 	if err != nil {
 		return accountdomain.EgressLeaseBlock{}, err
 	}
-	if !node.Enabled || node.Scope != domain.ScopeBuild || !s.accountBoundProxy(node) {
+	if !node.Enabled || !domain.ServesBuild(node.Scope) || !s.accountBoundProxy(node) {
 		return accountdomain.EgressLeaseBlock{}, ErrInvalidInput
 	}
 	credential, err := s.qualityLeases.Get(ctx, input.AccountID)
@@ -406,6 +406,7 @@ func (s *Service) DefaultUserAgents() map[string]string {
 	return map[string]string{
 		string(domain.ScopeBuild): "", string(domain.ScopeWeb): s.browserUA, string(domain.ScopeConsole): s.browserUA,
 		string(domain.ScopeWebAsset): s.browserUA, string(domain.ScopeConsoleAsset): s.browserUA,
+		string(domain.ScopeShared): s.browserUA,
 	}
 }
 
@@ -460,11 +461,11 @@ func (s *Service) publicNodes(values []domain.Node) []domain.PublicNode {
 }
 
 func validListScope(scope domain.Scope) bool {
-	return scope == "" || scope == domain.ScopeBuild || scope == domain.ScopeWeb || scope == domain.ScopeConsole || scope == domain.ScopeWebAsset || scope == domain.ScopeConsoleAsset
+	return scope == "" || scope == domain.ScopeBuild || scope == domain.ScopeWeb || scope == domain.ScopeConsole || scope == domain.ScopeWebAsset || scope == domain.ScopeConsoleAsset || scope == domain.ScopeShared
 }
 
 func allServiceScopes() []domain.Scope {
-	return []domain.Scope{domain.ScopeBuild, domain.ScopeWeb, domain.ScopeConsole, domain.ScopeWebAsset, domain.ScopeConsoleAsset}
+	return domain.AllScopes()
 }
 
 func validListValue(value string, allowed ...string) bool {
@@ -578,7 +579,7 @@ func (s *Service) ProxyURL(ctx context.Context, id uint64) (string, error) {
 // BackupNodes 返回带明文代理地址的节点快照，供配置备份使用。
 // 只有管理员显式导出的备份文件才会包含这些凭据。
 func (s *Service) BackupNodes(ctx context.Context) ([]domain.BackupNode, error) {
-	scopes := []domain.Scope{domain.ScopeBuild, domain.ScopeWeb, domain.ScopeConsole, domain.ScopeWebAsset, domain.ScopeConsoleAsset}
+	scopes := domain.AllScopes()
 	result := make([]domain.BackupNode, 0, 64)
 	for _, scope := range scopes {
 		values, err := s.repository.ListEgressNodes(ctx, scope, repository.SortQuery{Field: "name", Direction: repository.SortAscending})
@@ -1105,11 +1106,40 @@ func (s *Service) AssignAccounts(ctx context.Context, nodeID uint64, provider ac
 	if count != int64(len(unique)) {
 		return AssignmentResult{}, fmt.Errorf("%w: 包含不属于当前账号池的账号", ErrInvalidInput)
 	}
+	if err := s.ensureBindingCapacity(ctx, node, provider, len(unique)); err != nil {
+		return AssignmentResult{}, err
+	}
 	assigned, err := s.accounts.UpdateEgressBindings(ctx, provider, unique, &nodeID, mode, time.Now().UTC())
 	if err != nil {
 		return AssignmentResult{}, err
 	}
 	return AssignmentResult{Assigned: int(assigned)}, nil
+}
+
+// ensureBindingCapacity 校验手动绑定是否超过节点额度。
+// 额度按 Provider 分别核算：共用节点上 Build 与 Web 各自拥有一份容量。
+func (s *Service) ensureBindingCapacity(ctx context.Context, node domain.Node, provider accountdomain.Provider, incoming int) error {
+	if node.AccountCapacity <= 0 || incoming <= 0 {
+		return nil
+	}
+	assignments, err := s.accounts.ListEgressAssignments(ctx, provider)
+	if err != nil {
+		return err
+	}
+	existing := 0
+	for _, credential := range assignments {
+		if credential.EgressNodeID == node.ID {
+			existing++
+		}
+	}
+	remaining := node.AccountCapacity - existing
+	if remaining < 0 {
+		remaining = 0
+	}
+	if incoming > remaining {
+		return fmt.Errorf("%w: 节点「%s」的 %s 绑定额度仅剩 %d 个账号", ErrInvalidInput, node.Name, provider, remaining)
+	}
+	return nil
 }
 
 // UnassignAccounts removes an explicit binding and restores scope pool routing.
@@ -1138,9 +1168,9 @@ func (s *Service) UnassignAccounts(ctx context.Context, provider accountdomain.P
 func scopeSupportsProvider(scope domain.Scope, provider accountdomain.Provider) bool {
 	switch provider {
 	case accountdomain.ProviderBuild:
-		return scope == domain.ScopeBuild
+		return scope == domain.ScopeBuild || scope == domain.ScopeShared
 	case accountdomain.ProviderWeb:
-		return scope == domain.ScopeWeb
+		return scope == domain.ScopeWeb || scope == domain.ScopeShared
 	case accountdomain.ProviderConsole:
 		return domain.SupportsScope(scope, domain.ScopeConsole)
 	default:
@@ -1232,7 +1262,7 @@ func (s *Service) applyInput(value domain.Node, input Input, create bool) (domai
 		return domain.Node{}, fmt.Errorf("%w: 名称必须在 1 到 160 个字符之间", ErrInvalidInput)
 	}
 	if !validListScope(input.Scope) || input.Scope == "" {
-		return domain.Node{}, fmt.Errorf("%w: scope 必须是 grok_build、grok_web、grok_console、grok_web_asset 或 grok_console_asset", ErrInvalidInput)
+		return domain.Node{}, fmt.Errorf("%w: scope 必须是 grok_build、grok_web、grok_console、grok_web_asset、grok_console_asset 或 grok_shared", ErrInvalidInput)
 	}
 	value.Name, value.Scope, value.Enabled, value.ProxyPool = name, input.Scope, input.Enabled, proxyPool
 	if input.AccountCapacity != nil {
@@ -1347,6 +1377,8 @@ func (s *Service) publicNode(value domain.Node) domain.PublicNode {
 		IPv4Probe:     value.IPv4Probe, IPv6Probe: value.IPv6Probe,
 		AssignedAccountCount: value.AssignedAccountCount,
 		CreatedAt:            value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		// AssignedAccountCounts 按 Provider 分列的绑定量，共用节点据此分别核算额度。
+		AssignedAccountCounts: value.AssignedAccountCounts,
 	}
 }
 

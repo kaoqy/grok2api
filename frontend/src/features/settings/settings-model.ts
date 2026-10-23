@@ -132,6 +132,22 @@ export const settingsSchema = z.object({
     maxTotalSize: byteSizeSchema.refine((value) => byteSizeBytes(value) <= 2 ** 40),
     cleanupThresholdPercent: z.number().int().min(50).max(95),
     cleanupInterval: durationSchema.refine((value) => durationSeconds(value) >= 60 && durationSeconds(value) <= 86_400),
+    s3: z.object({
+      enabled: z.boolean(),
+      bucket: z.string().trim().max(200),
+      region: z.string().trim().max(120),
+      endpoint: z.string().trim().max(400),
+      accessKey: z.string().trim().max(400),
+      secretKey: z.string().max(400),
+      sessionToken: z.string().max(2_000),
+      prefix: z.string().trim().max(200),
+      pathStyle: z.boolean(),
+      publicBaseUrl: z.string().trim().max(400),
+      publicRead: z.boolean(),
+      secretKeyConfigured: z.boolean(),
+      sessionTokenConfigured: z.boolean(),
+    }).refine((value) => !value.enabled || value.bucket.length > 0, { path: ["bucket"], message: "invalid" })
+      .refine((value) => !value.enabled || value.accessKey.length > 0, { path: ["accessKey"], message: "invalid" }),
   }).refine((value) => byteSizeBytes(value.maxTotalSize) >= byteSizeBytes(value.maxImageSize), { path: ["maxTotalSize"] }),
   frontend: z.object({
     publicApiBaseURL: z.string().trim().max(2048).refine((value) => validPublicAPIBaseURL(value), { message: "invalid" }),
@@ -205,6 +221,13 @@ export function toSettingsForm(config: SettingsConfigDTO): SettingsForm {
       maxImageSize: parseByteSize(config.media.maxImageBytes), maxTotalSize: parseByteSize(config.media.maxTotalBytes),
       cleanupThresholdPercent: config.media.cleanupThresholdPercent,
       cleanupInterval: parseDuration(config.media.cleanupInterval),
+      s3: {
+        ...config.media.s3,
+        secretKey: "",
+        sessionToken: "",
+        secretKeyConfigured: config.media.s3.secretKeyConfigured,
+        sessionTokenConfigured: config.media.s3.sessionTokenConfigured,
+      },
     },
     frontend: {
       publicApiBaseURL: config.frontend.publicApiBaseURL,
@@ -254,6 +277,11 @@ export function toSettingsDTO(config: SettingsForm): SettingsConfigDTO {
       maxImageBytes: byteSizeBytes(config.media.maxImageSize), maxTotalBytes: byteSizeBytes(config.media.maxTotalSize),
       cleanupThresholdPercent: config.media.cleanupThresholdPercent,
       cleanupInterval: formatDuration(config.media.cleanupInterval),
+      s3: {
+        ...config.media.s3,
+        secretKey: config.media.s3.secretKey.trim(),
+        sessionToken: config.media.s3.sessionToken.trim(),
+      },
     },
     frontend: {
       publicApiBaseURL: config.frontend.publicApiBaseURL.trim(),

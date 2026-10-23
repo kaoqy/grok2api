@@ -44,9 +44,9 @@ func (s *Service) RebalanceAccounts(ctx context.Context, autoAssign, autoBalance
 	}
 	result := RebalanceResult{}
 	for _, provider := range accountdomain.Providers() {
-		// Node capacity is global across Provider pools. Refresh the counts after
-		// each provider so Web and Console assignments cannot overfill a shared
-		// Web node during the same maintenance pass.
+		// Node capacity is counted per Provider, so a shared node can carry a full
+		// quota for Build and another full quota for Web. Refresh the counts after
+		// each provider so the same maintenance pass never overfills one pool.
 		nodes, err := s.repository.ListEgressNodes(ctx, "", repository.SortQuery{})
 		if err != nil {
 			return result, err
@@ -78,7 +78,8 @@ func (s *Service) rebalanceProvider(ctx context.Context, provider accountdomain.
 	loads := make(map[uint64]int, len(nodes))
 	byID := make(map[uint64]domain.Node, len(nodes))
 	for _, node := range nodes {
-		loads[node.ID] = node.AssignedAccountCount
+		// 绑定额度按 Provider 分别核算：共用节点上 Build 与 Web 各自拥有一份额度。
+		loads[node.ID] = node.AssignedAccountCounts[string(provider)]
 		byID[node.ID] = node
 	}
 	original := make(map[uint64]uint64, len(accounts))
@@ -200,21 +201,12 @@ func capAutomaticAssignmentShare(nodes []domain.Node, accounts []accountdomain.C
 		return nodes
 	}
 	maxPerNode := max(1, int(math.Ceil(float64(active)*share)))
-	activeLoads := make(map[uint64]int, len(nodes))
-	for _, credential := range accounts {
-		if credential.Enabled && credential.AuthStatus == accountdomain.AuthStatusActive && credential.EgressNodeID != 0 {
-			activeLoads[credential.EgressNodeID]++
-		}
-	}
 	for index := range nodes {
 		configured := nodes[index].AccountCapacity
-		// AssignedAccountCount is global across providers and includes inactive
-		// and manual bindings. Preserve those reserved slots while limiting only
-		// this provider's active share on the node.
-		reservedByOthers := max(0, nodes[index].AssignedAccountCount-activeLoads[nodes[index].ID])
-		shareCapacity := reservedByOthers + maxPerNode
-		if configured <= 0 || configured > shareCapacity {
-			nodes[index].AccountCapacity = shareCapacity
+		// 额度已经按 Provider 分别核算，其他渠道的绑定不会占用本渠道的额度，
+		// 因此这里只需要把本 Provider 的份额上限压到分配比例。
+		if configured <= 0 || configured > maxPerNode {
+			nodes[index].AccountCapacity = maxPerNode
 		}
 	}
 	return nodes

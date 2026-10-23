@@ -20,7 +20,15 @@ const (
 	ScopeConsole      Scope = "grok_console"
 	ScopeWebAsset     Scope = "grok_web_asset"
 	ScopeConsoleAsset Scope = "grok_console_asset"
+	// ScopeShared 是同时供 Build 与 Web 复用的出口作用域。
+	// 绑定额度按 Provider 分别核算，因此同一个代理可以各挂一批 Build 与 Web 账号。
+	ScopeShared Scope = "grok_shared"
 )
+
+// AllScopes 返回全部出口作用域，含 Build/Web 共用节点。
+func AllScopes() []Scope {
+	return []Scope{ScopeBuild, ScopeWeb, ScopeConsole, ScopeWebAsset, ScopeConsoleAsset, ScopeShared}
+}
 
 type Node struct {
 	ID                          uint64
@@ -52,8 +60,10 @@ type Node struct {
 	IPv4Probe                   ProbeFamilyResult
 	IPv6Probe                   ProbeFamilyResult
 	AssignedAccountCount        int
-	CreatedAt                   time.Time
-	UpdatedAt                   time.Time
+	// AssignedAccountCounts 按 Provider 分别统计绑定量；共用节点据此分别核算额度。
+	AssignedAccountCounts map[string]int
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type PublicNode struct {
@@ -85,8 +95,10 @@ type PublicNode struct {
 	IPv4Probe            ProbeFamilyResult
 	IPv6Probe            ProbeFamilyResult
 	AssignedAccountCount int
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	// AssignedAccountCounts 按 Provider 分别统计绑定量；共用节点据此分别核算额度。
+	AssignedAccountCounts map[string]int
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 // ProxyProfile is a reusable physical proxy configuration. Provider-specific
@@ -282,6 +294,7 @@ func DefaultOperationsConfig() OperationsConfig {
 			ScopeConsole:      {Mode: FallbackModeNone},
 			ScopeWebAsset:     {Mode: FallbackModeNone},
 			ScopeConsoleAsset: {Mode: FallbackModeNone},
+			ScopeShared:       {Mode: FallbackModeNone},
 		},
 	}
 }
@@ -297,6 +310,12 @@ func (value OperationsConfig) FallbackFor(scope Scope) FallbackConfig {
 	return fallback
 }
 
+// ServesBuild reports whether the scope can carry Build traffic.
+// The shared scope serves both Build and Web.
+func ServesBuild(scope Scope) bool {
+	return scope == ScopeBuild || scope == ScopeShared
+}
+
 // SupportsScope reports whether a node can serve requests for the supplied
 // scope. Console may intentionally reuse a Web browser proxy. Resource scopes
 // may reuse their provider's primary node so explicit account bindings remain
@@ -304,6 +323,15 @@ func (value OperationsConfig) FallbackFor(scope Scope) FallbackConfig {
 func SupportsScope(nodeScope, requestScope Scope) bool {
 	if nodeScope == requestScope {
 		return true
+	}
+	// 共用节点同时服务 Build 与 Web；Console 与资源请求沿用浏览器身份，也能复用。
+	if nodeScope == ScopeShared {
+		switch requestScope {
+		case ScopeBuild, ScopeWeb, ScopeWebAsset, ScopeConsole, ScopeConsoleAsset:
+			return true
+		default:
+			return false
+		}
 	}
 	switch requestScope {
 	case ScopeWebAsset, ScopeConsole:

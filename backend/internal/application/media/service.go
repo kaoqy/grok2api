@@ -152,13 +152,14 @@ func (s *Service) saveImage(ctx context.Context, data []byte, expiresAt *time.Ti
 	}
 	digest := sha256.Sum256(data)
 	createdAt := time.Now().UTC()
-	storageKey, err := s.objects.SaveImage(ctx, id, mimeType, data)
+	storageKey, err := s.saveImageObject(ctx, id, mimeType, data, idPrefix)
 	if err != nil {
 		return mediadomain.Asset{}, err
 	}
 	asset := mediadomain.Asset{
 		ID: id, Kind: "image", StorageKey: storageKey, MIMEType: mimeType,
 		SizeBytes: int64(len(data)), SHA256: hex.EncodeToString(digest[:]), ExpiresAt: expiresAt, CreatedAt: createdAt,
+		StorageDriver: s.storageDriver(idPrefix == mediadomain.InputAssetIDPrefix),
 	}
 	if err := s.assets.CreateMediaAsset(ctx, asset); err != nil {
 		_ = s.objects.Delete(context.WithoutCancel(ctx), storageKey)
@@ -244,9 +245,41 @@ func (s *Service) ReleaseInputAssets(ctx context.Context, references []string) e
 	return nil
 }
 
+// saveImageObject 保存图片对象。
+// 临时输入图片始终留在本地目录，不占用对象存储空间。
+func (s *Service) saveImageObject(ctx context.Context, id, mimeType string, data []byte, idPrefix string) (string, error) {
+	if idPrefix == mediadomain.InputAssetIDPrefix {
+		if provider, ok := s.objects.(repository.MediaInputObjectStorage); ok {
+			return provider.SaveInputImage(ctx, id, mimeType, data)
+		}
+	}
+	return s.objects.SaveImage(ctx, id, mimeType, data)
+}
+
+// storageDriver 返回对象实际所在的存储驱动。
+func (s *Service) storageDriver(local bool) string {
+	if local {
+		return "local"
+	}
+	if reporter, ok := s.objects.(repository.MediaObjectStorageDriver); ok {
+		if value := strings.TrimSpace(reporter.ActiveDriver()); value != "" {
+			return value
+		}
+	}
+	return "local"
+}
+
 // PublicImageURL 返回可直接用于图片展示的公开资源地址。
-func (s *Service) PublicImageURL(id string) string {
-	return s.runtimeConfig().PublicBaseURL + "/v1/media/images/" + id
+// 已转存到 S3 的图片直接返回对象存储直链，其余图片仍走本地网关。
+func (s *Service) PublicImageURL(asset mediadomain.Asset) string {
+	if asset.StorageDriver == "s3" {
+		if provider, ok := s.objects.(repository.MediaPublicObjectURL); ok {
+			if value := provider.PublicObjectURL(asset.StorageKey); value != "" {
+				return value
+			}
+		}
+	}
+	return s.runtimeConfig().PublicBaseURL + "/v1/media/images/" + asset.ID
 }
 
 // OpenImage 读取图片元数据和正文，不向调用方暴露实际文件路径。

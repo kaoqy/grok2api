@@ -24,6 +24,10 @@ func (r *MediaAssetRepository) CreateMediaAsset(ctx context.Context, value media
 	row := mediaAssetModel{
 		ID: value.ID, Kind: value.Kind, StorageKey: value.StorageKey, MIMEType: value.MIMEType,
 		SizeBytes: value.SizeBytes, SHA256: value.SHA256, ExpiresAt: value.ExpiresAt, CreatedAt: value.CreatedAt,
+		StorageDriver: value.StorageDriver,
+	}
+	if row.StorageDriver == "" {
+		row.StorageDriver = "local"
 	}
 	return r.db.db.WithContext(ctx).Create(&row).Error
 }
@@ -36,6 +40,7 @@ func (r *MediaAssetRepository) GetMediaAsset(ctx context.Context, id string) (me
 	return media.Asset{
 		ID: row.ID, Kind: row.Kind, StorageKey: row.StorageKey, MIMEType: row.MIMEType,
 		SizeBytes: row.SizeBytes, SHA256: row.SHA256, ExpiresAt: row.ExpiresAt, CreatedAt: row.CreatedAt,
+		StorageDriver: row.StorageDriver,
 	}, nil
 }
 
@@ -52,7 +57,7 @@ func (r *MediaAssetRepository) ListMediaAssets(ctx context.Context, input reposi
 		return nil, 0, err
 	}
 	var rows []mediaAssetModel
-	if err := query.Select("id", "kind", "mime_type", "size_bytes", "sha256", "created_at").Order("created_at DESC, id DESC").Offset(input.Page.Offset).Limit(input.Page.Limit).Find(&rows).Error; err != nil {
+	if err := query.Select("id", "kind", "storage_key", "storage_driver", "mime_type", "size_bytes", "sha256", "created_at").Order("created_at DESC, id DESC").Offset(input.Page.Offset).Limit(input.Page.Limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	values := make([]media.Asset, 0, len(rows))
@@ -60,6 +65,7 @@ func (r *MediaAssetRepository) ListMediaAssets(ctx context.Context, input reposi
 		values = append(values, media.Asset{
 			ID: row.ID, Kind: row.Kind, StorageKey: row.StorageKey, MIMEType: row.MIMEType,
 			SizeBytes: row.SizeBytes, SHA256: row.SHA256, CreatedAt: row.CreatedAt,
+			StorageDriver: row.StorageDriver,
 		})
 	}
 	return values, total, nil

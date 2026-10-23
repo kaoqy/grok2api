@@ -1556,15 +1556,17 @@ export function AccountsPage() {
         {accountsQuery.isError ? <ErrorState message={accountsQuery.error.message} onRetry={() => void accountsQuery.refetch()} /> : null}
         {result && result.items.length === 0 ? <EmptyState /> : null}
         {accountsQuery.isPending || (result && result.items.length > 0) ? (
-          <Table viewportRows={20} rowHeight={56} className="table-fixed border-collapse min-w-[780px] xl:min-w-[960px] 2xl:min-w-[1080px]">
+          <Table viewportRows={20} rowHeight={56} className="table-fixed border-collapse min-w-[980px] xl:min-w-[1120px] 2xl:min-w-[1240px]">
+            {/* 列数必须与表头单元格一一对应；少一列会让「创建时间」被挤到 4% 的窄列里截断。 */}
             <colgroup>
-              <col style={{ width: "3%" }} />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "7%" }} />
-              <col style={{ width: provider === "grok_build" ? "20%" : "30%" }} />
-              <col style={{ width: "17%" }} />
-              {provider === "grok_build" ? <col style={{ width: "14%" }} /> : null}
-              <col style={{ width: "14%" }} />
+              <col style={{ width: "4%" }} />
+              <col style={{ width: provider === "grok_build" ? "17%" : "20%" }} />
+              <col style={{ width: provider === "grok_build" ? "8%" : "9%" }} />
+              <col style={{ width: provider === "grok_build" ? "9%" : "10%" }} />
+              <col style={{ width: provider === "grok_build" ? "17%" : "23%" }} />
+              <col style={{ width: provider === "grok_build" ? "13%" : "15%" }} />
+              {provider === "grok_build" ? <col style={{ width: "12%" }} /> : null}
+              <col style={{ width: provider === "grok_build" ? "16%" : "15%" }} />
               <col style={{ width: "4%" }} />
             </colgroup>
             <TableHeader>
@@ -1610,7 +1612,7 @@ export function AccountsPage() {
                         </Tooltip>
                       ) : <span className="font-medium text-amber-700 dark:text-amber-300">{t("accountCredential.noAutoRefresh")}</span>}
 	                    </TableCell> : null}
-                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(account.createdAt, i18n.language)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground" title={formatDateTime(account.createdAt, i18n.language)}>{formatDateTime(account.createdAt, i18n.language)}</TableCell>
                     <TableActionCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label={t("common.actions")}><MoreHorizontal /></Button></DropdownMenuTrigger>

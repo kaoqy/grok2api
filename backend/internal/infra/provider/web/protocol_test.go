@@ -1513,7 +1513,7 @@ func (imageAssetStoreStub) SaveImage(context.Context, []byte) (mediadomain.Asset
 	return mediadomain.Asset{ID: "img_test", MIMEType: "image/jpeg"}, nil
 }
 
-func (imageAssetStoreStub) PublicImageURL(string) string {
+func (imageAssetStoreStub) PublicImageURL(mediadomain.Asset) string {
 	return "https://api.example/v1/media/images/img_test"
 }
 
@@ -1530,7 +1530,7 @@ func (s *imageAssetStoreRetryStub) SaveImage(context.Context, []byte) (mediadoma
 	return mediadomain.Asset{ID: "img_retry", MIMEType: "image/jpeg"}, nil
 }
 
-func (*imageAssetStoreRetryStub) PublicImageURL(string) string {
+func (*imageAssetStoreRetryStub) PublicImageURL(mediadomain.Asset) string {
 	return "https://api.example/v1/media/images/img_retry"
 }
 

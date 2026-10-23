@@ -209,10 +209,27 @@ type MediaConfig struct {
 	CleanupThresholdPercent int              `yaml:"-"`
 	CleanupInterval         Duration         `yaml:"-"`
 	Local                   LocalMediaConfig `yaml:"local"`
+	S3                      S3MediaConfig    `yaml:"s3"`
 }
 
 type LocalMediaConfig struct {
 	Path string `yaml:"path"`
+}
+
+// S3MediaConfig 描述图片转存到对象存储的参数。
+// 管理员不开启时，生成的图片仍然保存在本地目录。
+type S3MediaConfig struct {
+	Enabled       bool   `yaml:"enabled"`
+	Bucket        string `yaml:"bucket"`
+	Region        string `yaml:"region"`
+	Endpoint      string `yaml:"endpoint"`
+	AccessKey     string `yaml:"accessKey"`
+	SecretKey     string `yaml:"secretKey"`
+	SessionToken  string `yaml:"sessionToken"`
+	Prefix        string `yaml:"prefix"`
+	PathStyle     bool   `yaml:"pathStyle"`
+	PublicBaseURL string `yaml:"publicBaseUrl"`
+	PublicRead    bool   `yaml:"publicRead"`
 }
 
 type RoutingConfig struct {
@@ -559,6 +576,14 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Media.Local.Path) == "" {
 		return errors.New("media.local.path 不能为空")
+	}
+	if c.Media.S3.Enabled {
+		if strings.TrimSpace(c.Media.S3.Bucket) == "" {
+			return errors.New("media.s3.bucket 不能为空")
+		}
+		if strings.TrimSpace(c.Media.S3.AccessKey) == "" || strings.TrimSpace(c.Media.S3.SecretKey) == "" {
+			return errors.New("media.s3.accessKey 与 media.s3.secretKey 不能为空")
+		}
 	}
 	if c.Media.MaxImageBytes < 1<<20 || c.Media.MaxImageBytes > 32<<20 {
 		return errors.New("media.maxImageBytes 必须在 1 MiB 到 32 MiB 之间")
@@ -924,6 +949,7 @@ func defaultConfig() Config {
 			Driver: "local", MaxImageBytes: 32 << 20, MaxTotalBytes: 1 << 30,
 			CleanupThresholdPercent: 80, CleanupInterval: Duration(10 * time.Minute),
 			Local: LocalMediaConfig{Path: "./data/media"},
+			S3:    S3MediaConfig{Region: "us-east-1"},
 		},
 		Routing: RoutingConfig{
 			StickyTTL:                   Duration(time.Hour),

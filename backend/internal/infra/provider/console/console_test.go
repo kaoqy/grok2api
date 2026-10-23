@@ -2301,8 +2301,8 @@ func (s *consoleImageAssetStoreStub) SaveImage(_ context.Context, data []byte) (
 	return mediadomain.Asset{ID: fmt.Sprintf("console-%d", len(s.saved)), MIMEType: "image/png"}, nil
 }
 
-func (*consoleImageAssetStoreStub) PublicImageURL(id string) string {
-	return "https://local.example/v1/media/images/" + id
+func (*consoleImageAssetStoreStub) PublicImageURL(asset mediadomain.Asset) string {
+	return "https://local.example/v1/media/images/" + asset.ID
 }
 
 func (s *consoleImageAssetStoreStub) Saved() [][]byte {

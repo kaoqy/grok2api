@@ -33,7 +33,7 @@ func (r *EgressRepository) ListEgressNodes(ctx context.Context, scope egress.Sco
 		return nil, err
 	}
 	values := make([]egress.Node, 0, len(rows))
-	counts, err := r.assignedAccountCounts(ctx)
+	counts, err := r.assignedAccountCountsByProvider(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (r *EgressRepository) ListEgressNodes(ctx context.Context, scope egress.Sco
 	}
 	for _, row := range rows {
 		value := toEgressDomain(row)
-		value.AssignedAccountCount = counts[value.ID]
+		value.AssignedAccountCount, value.AssignedAccountCounts = assignedCounts(value.ID, counts)
 		value.ProxyProfileName = profileNames[value.ProxyProfileID]
 		values = append(values, value)
 	}
@@ -94,7 +94,7 @@ func (r *EgressRepository) ListEgressNodePage(ctx context.Context, input reposit
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 	}
-	counts, err := r.assignedAccountCountsForNodes(ctx, ids)
+	counts, err := r.assignedAccountCountsByProvider(ctx, ids)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -105,7 +105,7 @@ func (r *EgressRepository) ListEgressNodePage(ctx context.Context, input reposit
 	values := make([]egress.Node, 0, len(rows))
 	for _, row := range rows {
 		value := toEgressDomain(row)
-		value.AssignedAccountCount = counts[value.ID]
+		value.AssignedAccountCount, value.AssignedAccountCounts = assignedCounts(value.ID, counts)
 		value.ProxyProfileName = profileNames[value.ProxyProfileID]
 		values = append(values, value)
 	}
@@ -772,8 +772,49 @@ func clearInvalidEgressFallbackNodeReferences(tx *gorm.DB) error {
 	return nil
 }
 
-func (r *EgressRepository) assignedAccountCounts(ctx context.Context) (map[uint64]int, error) {
-	return r.assignedAccountCountsForNodes(ctx, nil)
+// assignedAccountCountsByProvider 按 Provider 分列统计节点绑定量。
+// Build 与 Web 共用同一个代理时，两边的绑定额度必须分别核算，
+// 否则一个渠道的账号会吃掉另一个渠道的容量。
+func (r *EgressRepository) assignedAccountCountsByProvider(ctx context.Context, nodeIDs []uint64) (map[uint64]map[string]int, error) {
+	type row struct {
+		NodeID   uint64
+		Provider string
+		Count    int
+	}
+	var rows []row
+	query := r.db.db.WithContext(ctx).Model(&accountModel{}).
+		Select("egress_node_id AS node_id, provider, COUNT(*) AS count").
+		Where("egress_node_id IS NOT NULL")
+	if nodeIDs != nil {
+		if len(nodeIDs) == 0 {
+			return map[uint64]map[string]int{}, nil
+		}
+		query = query.Where("egress_node_id IN ?", nodeIDs)
+	}
+	if err := query.Group("egress_node_id, provider").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[uint64]map[string]int, len(rows))
+	for _, row := range rows {
+		if result[row.NodeID] == nil {
+			result[row.NodeID] = make(map[string]int, 2)
+		}
+		result[row.NodeID][row.Provider] = row.Count
+	}
+	return result, nil
+}
+
+// assignedCounts 返回节点的绑定总数与分 Provider 明细。
+func assignedCounts(nodeID uint64, counts map[uint64]map[string]int) (int, map[string]int) {
+	perProvider := counts[nodeID]
+	if perProvider == nil {
+		perProvider = map[string]int{}
+	}
+	total := 0
+	for _, count := range perProvider {
+		total += count
+	}
+	return total, perProvider
 }
 
 func (r *EgressRepository) egressProxyProfileNames(ctx context.Context, nodes []egressNodeModel) (map[uint64]string, error) {
@@ -804,31 +845,6 @@ func (r *EgressRepository) egressProxyProfileNames(ctx context.Context, nodes []
 	result := make(map[uint64]string, len(rows))
 	for _, row := range rows {
 		result[row.ID] = row.Name
-	}
-	return result, nil
-}
-
-func (r *EgressRepository) assignedAccountCountsForNodes(ctx context.Context, nodeIDs []uint64) (map[uint64]int, error) {
-	type row struct {
-		NodeID uint64
-		Count  int
-	}
-	var rows []row
-	query := r.db.db.WithContext(ctx).Model(&accountModel{}).
-		Select("egress_node_id AS node_id, COUNT(*) AS count").
-		Where("egress_node_id IS NOT NULL")
-	if nodeIDs != nil {
-		if len(nodeIDs) == 0 {
-			return map[uint64]int{}, nil
-		}
-		query = query.Where("egress_node_id IN ?", nodeIDs)
-	}
-	if err := query.Group("egress_node_id").Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	result := make(map[uint64]int, len(rows))
-	for _, row := range rows {
-		result[row.NodeID] = row.Count
 	}
 	return result, nil
 }

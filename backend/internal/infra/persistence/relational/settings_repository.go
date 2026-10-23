@@ -18,6 +18,8 @@ const runtimeSettingsKey = "gateway"
 type runtimeSettingsPayload struct {
 	Config                      settingsdomain.Config `json:"config"`
 	EncryptedStatsigManualValue string                `json:"encryptedStatsigManualValue,omitempty"`
+	EncryptedS3SecretKey        string                `json:"encryptedS3SecretKey,omitempty"`
+	EncryptedS3SessionToken     string                `json:"encryptedS3SessionToken,omitempty"`
 }
 
 type RuntimeSettingsRepository struct {
@@ -47,6 +49,16 @@ func (r *RuntimeSettingsRepository) Get(ctx context.Context) (settingsdomain.Con
 		return settingsdomain.Config{}, time.Time{}, 0, false, fmt.Errorf("解密 Statsig 手动值: %w", err)
 	}
 	payload.Config.ProviderWeb.StatsigManualValue = manualValue
+	secretKey, err := r.cipher.Decrypt(payload.EncryptedS3SecretKey)
+	if err != nil {
+		return settingsdomain.Config{}, time.Time{}, 0, false, fmt.Errorf("解密 S3 密钥: %w", err)
+	}
+	payload.Config.Media.S3.SecretKey = secretKey
+	sessionToken, err := r.cipher.Decrypt(payload.EncryptedS3SessionToken)
+	if err != nil {
+		return settingsdomain.Config{}, time.Time{}, 0, false, fmt.Errorf("解密 S3 会话令牌: %w", err)
+	}
+	payload.Config.Media.S3.SessionToken = sessionToken
 	return payload.Config, row.UpdatedAt, row.Revision, true, nil
 }
 
@@ -56,7 +68,20 @@ func (r *RuntimeSettingsRepository) Save(ctx context.Context, value settingsdoma
 		return time.Time{}, 0, fmt.Errorf("加密 Statsig 手动值: %w", err)
 	}
 	value.ProviderWeb.StatsigManualValue = ""
-	payload, err := json.Marshal(runtimeSettingsPayload{Config: value, EncryptedStatsigManualValue: manualValue})
+	secretKey, err := r.cipher.Encrypt(value.Media.S3.SecretKey)
+	if err != nil {
+		return time.Time{}, 0, fmt.Errorf("加密 S3 密钥: %w", err)
+	}
+	value.Media.S3.SecretKey = ""
+	sessionToken, err := r.cipher.Encrypt(value.Media.S3.SessionToken)
+	if err != nil {
+		return time.Time{}, 0, fmt.Errorf("加密 S3 会话令牌: %w", err)
+	}
+	value.Media.S3.SessionToken = ""
+	payload, err := json.Marshal(runtimeSettingsPayload{
+		Config: value, EncryptedStatsigManualValue: manualValue,
+		EncryptedS3SecretKey: secretKey, EncryptedS3SessionToken: sessionToken,
+	})
 	if err != nil {
 		return time.Time{}, 0, fmt.Errorf("编码运行设置: %w", err)
 	}

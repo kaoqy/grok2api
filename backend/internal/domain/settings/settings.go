@@ -65,6 +65,23 @@ type MediaConfig struct {
 	MaxTotalBytes           int64
 	CleanupThresholdPercent int
 	CleanupInterval         time.Duration
+	// S3 描述图片转存到对象存储的配置；SecretKey 与 SessionToken 以密文保存。
+	S3 S3Config
+}
+
+// S3Config 描述运行时的 S3 图片转存配置。
+type S3Config struct {
+	Enabled       bool
+	Bucket        string
+	Region        string
+	Endpoint      string
+	AccessKey     string
+	SecretKey     string
+	SessionToken  string
+	Prefix        string
+	PathStyle     bool
+	PublicBaseURL string
+	PublicRead    bool
 }
 
 type ProviderWebConfig struct {

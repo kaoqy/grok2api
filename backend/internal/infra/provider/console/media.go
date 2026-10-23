@@ -309,7 +309,7 @@ func (a *Adapter) localizeConsoleImageResponse(ctx context.Context, credential a
 		if err != nil {
 			return nil, provider.NewMediaPostProcessingError(provider.MediaPostProcessingStorage, err)
 		}
-		items[index]["url"], _ = json.Marshal(a.assets.PublicImageURL(asset.ID))
+		items[index]["url"], _ = json.Marshal(a.assets.PublicImageURL(asset))
 		items[index]["mime_type"], _ = json.Marshal(asset.MIMEType)
 	}
 	encodedItems, err := json.Marshal(items)

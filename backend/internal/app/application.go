@@ -144,6 +144,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Applicat
 		database.Close()
 		return nil, err
 	}
+	// 媒体对象存储负责图片转存：管理员未开启 S3 时仍使用本地目录。
+	mediaStore := inframedia.NewObjectStore(localMediaStore)
+	if err := mediaStore.Configure(mediaS3Options(cfg)); err != nil {
+		database.Close()
+		return nil, fmt.Errorf("初始化 S3 图片转存: %w", err)
+	}
 	if err := preflightDeployment(cfg); err != nil {
 		database.Close()
 		return nil, err
@@ -200,7 +206,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Applicat
 		return nil, fmt.Errorf("不支持的运行态驱动: %s", cfg.RuntimeStore.Driver)
 	}
 	logger.Info("deployment_topology", "replicas", cfg.Deployment.Replicas, "instance_id", cfg.Deployment.InstanceID, "cluster_id", cfg.Deployment.ClusterID, "database", cfg.Database.Driver, "runtime_store", cfg.RuntimeStore.Driver, "media_driver", cfg.Media.Driver, "shared_media", cfg.Deployment.SharedMedia)
-	mediaService := mediaapp.NewServiceWithTickets(mediaAssetRepo, mediaJobRepo, mediaUploadTicketRepo, localMediaStore, refreshLock, mediaConfig(cfg))
+	mediaService := mediaapp.NewServiceWithTickets(mediaAssetRepo, mediaJobRepo, mediaUploadTicketRepo, mediaStore, refreshLock, mediaConfig(cfg))
 
 	egressManager := infraegress.NewManager(egressRepo, cipher)
 	egressManager.SetLogger(logger)
@@ -400,6 +406,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Applicat
 		egressManager.UpdateClearanceConfig(clearanceConfig(next))
 		consoleAdapter.UpdateConfig(consoleProviderConfig(next))
 		mediaService.UpdateConfig(mediaConfig(next))
+		if err := mediaStore.Configure(mediaS3Options(next)); err != nil {
+			logger.Warn("media_s3_configure_failed", "error", err)
+		}
 		quotaRecoveryService.UpdateConfig(next.Provider.Web.RecoveryBackoffBase.Value(), next.Provider.Web.RecoveryBackoffMax.Value())
 		accountSyncService.UpdateConcurrency(next.Batch.ImportConcurrency)
 		selector.UpdateConfig(next.Routing.StickyTTL.Value(), next.Routing.CooldownBase.Value(), next.Routing.CooldownMax.Value(), next.Routing.CapacityWait.Value())
@@ -512,6 +521,16 @@ func auditLedgerConfig(value config.AuditConfig) auditapp.LedgerConfig {
 		FailureThreshold:          value.LedgerFailureThreshold,
 		UnhealthyGrace:            value.LedgerUnhealthyGrace.Value(),
 		QueueHighWatermarkPercent: value.LedgerQueueHighWatermarkPct,
+	}
+}
+
+// mediaS3Options 把运行配置转换成媒体存储可用的 S3 参数。
+func mediaS3Options(cfg config.Config) inframedia.S3Options {
+	return inframedia.S3Options{
+		Enabled: cfg.Media.S3.Enabled, Bucket: cfg.Media.S3.Bucket, Region: cfg.Media.S3.Region,
+		Endpoint: cfg.Media.S3.Endpoint, AccessKey: cfg.Media.S3.AccessKey, SecretKey: cfg.Media.S3.SecretKey,
+		SessionToken: cfg.Media.S3.SessionToken, Prefix: cfg.Media.S3.Prefix, PathStyle: cfg.Media.S3.PathStyle,
+		PublicBaseURL: cfg.Media.S3.PublicBaseURL, PublicRead: cfg.Media.S3.PublicRead,
 	}
 }
 

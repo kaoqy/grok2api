@@ -51,7 +51,7 @@ func TestServicePersistsAndReopensImage(t *testing.T) {
 	if asset.MIMEType != "image/png" || asset.SizeBytes != int64(len(raw)) || len(asset.SHA256) != 64 {
 		t.Fatalf("asset = %#v", asset)
 	}
-	if got := service.PublicImageURL(asset.ID); got != "https://api.example/v1/media/images/"+asset.ID {
+	if got := service.PublicImageURL(asset); got != "https://api.example/v1/media/images/"+asset.ID {
 		t.Fatalf("public URL = %q", got)
 	}
 	stored, body, err := service.OpenImage(ctx, asset.ID)
@@ -681,13 +681,13 @@ func TestCleanupPreservesMetadataWhenLocalObjectIsMissing(t *testing.T) {
 
 func TestPublicImageURLUsesHotReloadedBase(t *testing.T) {
 	service := NewService(nil, nil, nil, nil, Config{PublicBaseURL: "https://config.example/base/"})
-	if got := service.PublicImageURL("img_demo"); got != "https://config.example/base/v1/media/images/img_demo" {
+	if got := service.PublicImageURL(mediadomain.Asset{ID: "img_demo"}); got != "https://config.example/base/v1/media/images/img_demo" {
 		t.Fatalf("configured URL = %q", got)
 	}
 	updated := service.runtimeConfig()
 	updated.PublicBaseURL = "https://runtime.example/api/"
 	service.UpdateConfig(updated)
-	if got := service.PublicImageURL("img_demo"); got != "https://runtime.example/api/v1/media/images/img_demo" {
+	if got := service.PublicImageURL(mediadomain.Asset{ID: "img_demo"}); got != "https://runtime.example/api/v1/media/images/img_demo" {
 		t.Fatalf("hot-reloaded URL = %q", got)
 	}
 }

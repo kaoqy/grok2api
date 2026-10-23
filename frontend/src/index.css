@@ -124,6 +124,15 @@
  * 这样图标、状态徽章、图表与热力图都落在同一个视觉系统里。
  */
 @theme {
+  /*
+   * 字体栈：先给拉丁字形，再给等宽 CJK 回退。
+   * Windows 上的 Consolas/Cascadia 没有汉字，浏览器会临时回退到比例字体，
+   * 于是同一列里数字是等宽的、汉字不是，视觉宽度就对不齐了。
+   * 把带 CJK 的等宽字体写进栈里，缺字时的回退仍然是等宽的。
+   */
+  --font-sans: "Inter", "Aptos", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Microsoft YaHei Mono", "PingFang SC", "Microsoft YaHei UI", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
   --color-amber-300: #d6d6d6;
   --color-amber-400: #b4b4b4;
   --color-amber-500: #909090;
@@ -271,7 +280,8 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: "Inter", "Aptos", "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 14px;
   line-height: 1.5;
   letter-spacing: 0;

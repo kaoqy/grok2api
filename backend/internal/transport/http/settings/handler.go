@@ -45,10 +45,29 @@ type providerConsoleConfigDTO struct {
 }
 
 type mediaConfigDTO struct {
-	MaxImageBytes           int64  `json:"maxImageBytes"`
-	MaxTotalBytes           int64  `json:"maxTotalBytes"`
-	CleanupThresholdPercent int    `json:"cleanupThresholdPercent"`
-	CleanupInterval         string `json:"cleanupInterval"`
+	MaxImageBytes           int64       `json:"maxImageBytes"`
+	MaxTotalBytes           int64       `json:"maxTotalBytes"`
+	CleanupThresholdPercent int         `json:"cleanupThresholdPercent"`
+	CleanupInterval         string      `json:"cleanupInterval"`
+	S3                      s3ConfigDTO `json:"s3"`
+}
+
+// s3ConfigDTO 描述图片转存到对象存储的配置。
+// secretKey 与 sessionToken 是只写字段，响应中只返回是否已配置。
+type s3ConfigDTO struct {
+	Enabled                bool   `json:"enabled"`
+	Bucket                 string `json:"bucket"`
+	Region                 string `json:"region"`
+	Endpoint               string `json:"endpoint"`
+	AccessKey              string `json:"accessKey"`
+	SecretKey              string `json:"secretKey,omitempty"`
+	SessionToken           string `json:"sessionToken,omitempty"`
+	Prefix                 string `json:"prefix"`
+	PathStyle              bool   `json:"pathStyle"`
+	PublicBaseURL          string `json:"publicBaseUrl"`
+	PublicRead             bool   `json:"publicRead"`
+	SecretKeyConfigured    bool   `json:"secretKeyConfigured"`
+	SessionTokenConfigured bool   `json:"sessionTokenConfigured"`
 }
 
 type frontendConfigDTO struct {
@@ -222,6 +241,13 @@ func (value settingsConfigDTO) toApplication() settingsapp.EditableConfig {
 		Media: settingsapp.MediaConfig{
 			MaxImageBytes: value.Media.MaxImageBytes, MaxTotalBytes: value.Media.MaxTotalBytes,
 			CleanupThresholdPercent: value.Media.CleanupThresholdPercent, CleanupInterval: value.Media.CleanupInterval,
+			S3: settingsapp.S3Config{
+				Enabled: value.Media.S3.Enabled, Bucket: value.Media.S3.Bucket, Region: value.Media.S3.Region,
+				Endpoint: value.Media.S3.Endpoint, AccessKey: value.Media.S3.AccessKey,
+				SecretKey: value.Media.S3.SecretKey, SessionToken: value.Media.S3.SessionToken,
+				Prefix: value.Media.S3.Prefix, PathStyle: value.Media.S3.PathStyle,
+				PublicBaseURL: value.Media.S3.PublicBaseURL, PublicRead: value.Media.S3.PublicRead,
+			},
 		},
 		Frontend: settingsapp.FrontendConfig{
 			PublicAPIBaseURL: value.Frontend.PublicAPIBaseURL,
@@ -306,6 +332,14 @@ func newSettingsResponse(value settingsapp.Snapshot) settingsResponse {
 			Media: mediaConfigDTO{
 				MaxImageBytes: config.Media.MaxImageBytes, MaxTotalBytes: config.Media.MaxTotalBytes,
 				CleanupThresholdPercent: config.Media.CleanupThresholdPercent, CleanupInterval: config.Media.CleanupInterval,
+				S3: s3ConfigDTO{
+					Enabled: config.Media.S3.Enabled, Bucket: config.Media.S3.Bucket, Region: config.Media.S3.Region,
+					Endpoint: config.Media.S3.Endpoint, AccessKey: config.Media.S3.AccessKey,
+					Prefix: config.Media.S3.Prefix, PathStyle: config.Media.S3.PathStyle,
+					PublicBaseURL: config.Media.S3.PublicBaseURL, PublicRead: config.Media.S3.PublicRead,
+					SecretKeyConfigured: config.Media.S3.SecretKeyConfigured,
+					SessionTokenConfigured: config.Media.S3.SessionTokenConfigured,
+				},
 			},
 			Frontend: frontendConfigDTO{
 				PublicAPIBaseURL: config.Frontend.PublicAPIBaseURL,

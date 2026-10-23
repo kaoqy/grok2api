@@ -8,6 +8,8 @@ type mediaAssetDTO struct {
 	SHA256    string `json:"sha256"`
 	CreatedAt string `json:"createdAt"`
 	URL       string `json:"url"`
+	// StorageDriver 标记图片存在本地目录还是 S3 对象存储。
+	StorageDriver string `json:"storageDriver"`
 }
 
 type imageStatsDTO struct {

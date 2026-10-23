@@ -101,6 +101,21 @@ type MediaUploadTicketRepository interface {
 	BindJobResultAsset(ctx context.Context, jobID, assetID string) error
 }
 
+// MediaObjectStorageDriver 报告当前写入使用的存储驱动；未实现时默认本地存储。
+type MediaObjectStorageDriver interface {
+	ActiveDriver() string
+}
+
+// MediaPublicObjectURL 由存储实现提供对象的公开直链地址。
+type MediaPublicObjectURL interface {
+	PublicObjectURL(storageKey string) string
+}
+
+// MediaInputObjectStorage 允许把临时输入图片固定保存在本地目录。
+type MediaInputObjectStorage interface {
+	SaveInputImage(ctx context.Context, id, mimeType string, data []byte) (string, error)
+}
+
 // MediaObjectStorage 定义媒体二进制对象的存取边界。
 type MediaObjectStorage interface {
 	SaveImage(ctx context.Context, id, mimeType string, data []byte) (string, error)

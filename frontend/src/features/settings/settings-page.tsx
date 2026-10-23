@@ -31,6 +31,9 @@ export function SettingsPage() {
   const limitedRoutingAttemptsRef = useRef(3);
   const limitedVideoRoutingAttemptsRef = useRef(999);
   const dirtyCount = Object.keys(form.formState.dirtyFields).length;
+  const s3Enabled = form.watch("media.s3.enabled");
+  const s3SecretConfigured = form.watch("media.s3.secretKeyConfigured") || (form.watch("media.s3.secretKey") ?? "").length > 0;
+  const s3SessionConfigured = form.watch("media.s3.sessionTokenConfigured") || (form.watch("media.s3.sessionToken") ?? "").length > 0;
 
   if (settingsQuery.isError) {
     return <ErrorState message={settingsQuery.error.message} onRetry={() => void settingsQuery.refetch()} />;
@@ -230,6 +233,72 @@ export function SettingsPage() {
               <SettingsField controlId="frontend-public-api-base-url" label={t("settings.media.publicApiBaseURL")} description={t("settings.media.publicApiBaseURLHelp")} error={form.formState.errors.frontend?.publicApiBaseURL?.message} className="sm:col-span-2">
                 <Input id="frontend-public-api-base-url" placeholder="https://api.example.com" {...form.register("frontend.publicApiBaseURL")} />
               </SettingsField>
+            </div>
+          </SettingsSection>
+
+          <SettingsSection title={t("settings.media.s3Title")}>
+            <div className="space-y-0">
+              <SettingsField controlId="media-s3-enabled" label={t("settings.media.s3Enabled")} description={t("settings.media.s3EnabledHelp")}>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Switch
+                    id="media-s3-enabled"
+                    aria-label={t("settings.media.s3Enabled")}
+                    checked={s3Enabled}
+                    onCheckedChange={(checked) => form.setValue("media.s3.enabled", checked, { shouldDirty: true, shouldTouch: true, shouldValidate: true })}
+                  />
+                  <span className="text-xs text-muted-foreground">{s3Enabled ? t("settings.media.s3StateOn") : t("settings.media.s3StateOff")}</span>
+                </div>
+              </SettingsField>
+              {s3Enabled ? (
+                <>
+                  <SettingsField controlId="media-s3-bucket" label={t("settings.media.s3Bucket")} description={t("settings.media.s3BucketHelp")} error={form.formState.errors.media?.s3?.bucket?.message}>
+                    <Input id="media-s3-bucket" placeholder="grok2api-media" {...form.register("media.s3.bucket")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-region" label={t("settings.media.s3Region")} description={t("settings.media.s3RegionHelp")}>
+                    <Input id="media-s3-region" placeholder="us-east-1" {...form.register("media.s3.region")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-endpoint" label={t("settings.media.s3Endpoint")} description={t("settings.media.s3EndpointHelp")}>
+                    <Input id="media-s3-endpoint" placeholder="https://s3.us-east-1.amazonaws.com" {...form.register("media.s3.endpoint")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-access-key" label={t("settings.media.s3AccessKey")} description={t("settings.media.s3AccessKeyHelp")} error={form.formState.errors.media?.s3?.accessKey?.message}>
+                    <Input id="media-s3-access-key" autoComplete="off" {...form.register("media.s3.accessKey")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-secret-key" label={t("settings.media.s3SecretKey")} description={t("settings.media.s3SecretKeyHelp")} badge={s3SecretConfigured ? t("settings.media.s3Configured") : undefined}>
+                    <Input id="media-s3-secret-key" type="password" autoComplete="new-password" placeholder={s3SecretConfigured ? t("settings.media.s3KeepConfigured") : ""} {...form.register("media.s3.secretKey")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-session-token" label={t("settings.media.s3SessionToken")} description={t("settings.media.s3SessionTokenHelp")} badge={s3SessionConfigured ? t("settings.media.s3Configured") : undefined}>
+                    <Input id="media-s3-session-token" type="password" autoComplete="new-password" placeholder={s3SessionConfigured ? t("settings.media.s3KeepConfigured") : ""} {...form.register("media.s3.sessionToken")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-prefix" label={t("settings.media.s3Prefix")} description={t("settings.media.s3PrefixHelp")}>
+                    <Input id="media-s3-prefix" placeholder="grok2api" {...form.register("media.s3.prefix")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-path-style" label={t("settings.media.s3PathStyle")} description={t("settings.media.s3PathStyleHelp")}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Switch
+                        id="media-s3-path-style"
+                        aria-label={t("settings.media.s3PathStyle")}
+                        checked={form.watch("media.s3.pathStyle")}
+                        onCheckedChange={(checked) => form.setValue("media.s3.pathStyle", checked, { shouldDirty: true, shouldTouch: true })}
+                      />
+                      <span className="text-xs text-muted-foreground">{form.watch("media.s3.pathStyle") ? t("settings.media.s3PathStyleOn") : t("settings.media.s3PathStyleOff")}</span>
+                    </div>
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-public-base-url" label={t("settings.media.s3PublicBaseURL")} description={t("settings.media.s3PublicBaseURLHelp")}>
+                    <Input id="media-s3-public-base-url" placeholder="https://cdn.example.com" {...form.register("media.s3.publicBaseUrl")} />
+                  </SettingsField>
+                  <SettingsField controlId="media-s3-public-read" label={t("settings.media.s3PublicRead")} description={t("settings.media.s3PublicReadHelp")}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Switch
+                        id="media-s3-public-read"
+                        aria-label={t("settings.media.s3PublicRead")}
+                        checked={form.watch("media.s3.publicRead")}
+                        onCheckedChange={(checked) => form.setValue("media.s3.publicRead", checked, { shouldDirty: true, shouldTouch: true })}
+                      />
+                      <span className="text-xs text-muted-foreground">{form.watch("media.s3.publicRead") ? t("settings.media.s3PathStyleOn") : t("settings.media.s3PathStyleOff")}</span>
+                    </div>
+                  </SettingsField>
+                </>
+              ) : null}
             </div>
           </SettingsSection>
 

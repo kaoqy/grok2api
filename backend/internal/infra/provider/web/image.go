@@ -1484,7 +1484,7 @@ func (a *Adapter) imageDataItem(ctx context.Context, credential account.Credenti
 		return nil, provider.NewMediaPostProcessingError(provider.MediaPostProcessingStorage, err)
 	}
 	if format != "b64_json" {
-		return map[string]any{"url": a.assets.PublicImageURL(asset.ID), "mime_type": asset.MIMEType, "revised_prompt": ""}, nil
+		return map[string]any{"url": a.assets.PublicImageURL(asset), "mime_type": asset.MIMEType, "revised_prompt": ""}, nil
 	}
 	return map[string]any{"b64_json": base64.StdEncoding.EncodeToString(raw), "mime_type": asset.MIMEType, "revised_prompt": ""}, nil
 }

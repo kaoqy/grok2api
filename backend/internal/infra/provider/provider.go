@@ -812,7 +812,8 @@ type ImageEditAdapter interface {
 // ImageAssetStore archives generated images as local resources that the backend can read reliably.
 type ImageAssetStore interface {
 	SaveImage(ctx context.Context, data []byte) (media.Asset, error)
-	PublicImageURL(id string) string
+	// PublicImageURL 返回图片的公开地址；资源可能已转存到对象存储。
+	PublicImageURL(asset media.Asset) string
 }
 
 type VideoAdapter interface {

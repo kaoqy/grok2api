@@ -12,6 +12,7 @@ const scopeLabelKey: Record<EgressScope, string> = {
   grok_console: "console.name",
   grok_web_asset: "settings.egress.scopeWebAsset",
   grok_console_asset: "console.name",
+  grok_shared: "settings.egress.scopeShared",
 };
 
 // AccountEgressCell 展示账号实际绑定的 SOCKS 出口：节点名称 + 代理地址。

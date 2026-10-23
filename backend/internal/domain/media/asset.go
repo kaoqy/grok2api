@@ -36,11 +36,13 @@ func ParseInputReference(reference string) (string, bool) {
 	return fileID, ok && IsInputAssetID(fileID)
 }
 
-// Asset 表示已归档到本地媒体存储的不可变资源。
+// Asset 表示已归档到媒体存储的不可变资源。
 type Asset struct {
 	ID         string
 	Kind       string
 	StorageKey string
+	// StorageDriver 标记对象存在哪个存储：本地目录或 S3 对象存储。
+	StorageDriver string
 	MIMEType   string
 	SizeBytes  int64
 	SHA256     string

@@ -719,6 +719,8 @@ type nodeResponse struct {
 	IPv4Probe            probeFamilyResponse `json:"ipv4Probe"`
 	IPv6Probe            probeFamilyResponse `json:"ipv6Probe"`
 	AssignedAccountCount int                 `json:"assignedAccountCount"`
+	// AssignedAccountCounts 按 Provider 分列的绑定量；共用代理的额度分别核算。
+	AssignedAccountCounts map[string]int `json:"assignedAccountCounts"`
 }
 
 type probeFamilyResponse struct {
@@ -1114,6 +1116,7 @@ func newNodeResponse(value egressdomain.PublicNode) nodeResponse {
 		ProbeProvider: string(value.ProbeProvider),
 		IPv4Probe:     newProbeFamilyResponse(value.IPv4Probe), IPv6Probe: newProbeFamilyResponse(value.IPv6Probe),
 		AssignedAccountCount: value.AssignedAccountCount,
+		AssignedAccountCounts: value.AssignedAccountCounts,
 	}
 }
 
@@ -1301,8 +1304,8 @@ func newSourceResponse(value egressdomain.PublicSubscriptionSource) sourceRespon
 }
 
 func newOperationsConfigResponse(value egressdomain.OperationsConfig) operationsConfigResponse {
-	fallbacks := make(map[string]operationsFallbackResponse, 5)
-	for _, scope := range []egressdomain.Scope{egressdomain.ScopeBuild, egressdomain.ScopeWeb, egressdomain.ScopeConsole, egressdomain.ScopeWebAsset, egressdomain.ScopeConsoleAsset} {
+	fallbacks := make(map[string]operationsFallbackResponse, len(egressdomain.AllScopes()))
+	for _, scope := range egressdomain.AllScopes() {
 		fallback := value.FallbackFor(scope)
 		item := operationsFallbackResponse{Mode: string(fallback.Mode)}
 		if fallback.NodeID != 0 {

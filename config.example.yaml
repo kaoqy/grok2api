@@ -87,6 +87,28 @@ media:
   local:
     # [按需修改] 图片二进制目录；数据库只保存资源元数据。
     path: "./data/media"
+  # [按需修改] 绘图转存到 S3 对象存储；管理端可以在运行时开关，关闭时图片仍然保存在本地目录。
+  s3:
+    enabled: false
+    # [按需修改] 存储桶名称；启用后上传的图片会直接返回对象存储地址。
+    bucket: ""
+    # [按需修改] S3 区域；留空按 us-east-1 处理。
+    region: us-east-1
+    # [按需修改] 自定义 S3 兼容服务地址；留空使用 AWS 默认域名。
+    endpoint: ""
+    # [按需修改] 访问密钥；建议在管理端保存，这里只作为默认值。
+    accessKey: ""
+    secretKey: ""
+    # [按需修改] 临时凭据使用的会话令牌。
+    sessionToken: ""
+    # [按需修改] 对象键前缀。
+    prefix: ""
+    # [按需修改] 自建或 MinIO 兼容服务建议开启。
+    pathStyle: false
+    # [按需修改] 对外公开的直链前缀，例如 CDN 域名。
+    publicBaseUrl: ""
+    # [按需修改] 上传时附带 public-read ACL；存储桶禁用 ACL 时保持关闭。
+    publicRead: false
 
 routing:
   # [按需修改] 服务端推理回放缓存：多轮时自动补回客户端未携带的 encrypted_content。

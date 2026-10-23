@@ -7,6 +7,7 @@ import {
   decodeCountResult,
   hasShape,
   isNumber,
+  isOptional,
   isString,
   isOneOf,
 } from "@/shared/api/decoder";
@@ -35,6 +36,7 @@ const mediaAssetShape = {
   sha256: isString,
   createdAt: isString,
   url: isString,
+  storageDriver: isOptional(isString),
 };
 
 const mediaJobShape = {

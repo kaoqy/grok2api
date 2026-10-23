@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, Database, Image as ImageIcon, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ArrowUpRight, Cloud, Database, HardDrive, Image as ImageIcon, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -213,6 +213,12 @@ function ImageCard({ image, locale, selectionMode, selected, onSelectedChange }:
           <div className="flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
             <span className="min-w-0 truncate uppercase" title={image.mimeType}>{formatMediaType(image)}</span>
             <span className="shrink-0 whitespace-nowrap">{formatDateTime(image.createdAt, locale)}</span>
+          </div>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-1 py-px text-[10px] uppercase text-muted-foreground">
+              {image.storageDriver === "s3" ? <Cloud className="size-2.5" /> : <HardDrive className="size-2.5" />}
+              {image.storageDriver === "s3" ? t("media.images.storageS3") : t("media.images.storageLocal")}
+            </span>
           </div>
         </div>
       </a>

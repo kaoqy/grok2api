@@ -6,6 +6,8 @@ export type MediaAssetDTO = {
   sha256: string;
   createdAt: string;
   url: string;
+  // storageDriver 标记图片存在本地目录还是 S3 对象存储。
+  storageDriver: string;
 };
 
 export type MediaJobDTO = {

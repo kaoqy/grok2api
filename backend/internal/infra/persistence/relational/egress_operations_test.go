@@ -187,7 +187,7 @@ func TestEgressOperationsBalanceNeverMovesManualBindings(t *testing.T) {
 	}
 }
 
-func TestEgressOperationsSharesWebNodeCapacityAcrossProviders(t *testing.T) {
+func TestEgressOperationsCountsNodeCapacityPerProvider(t *testing.T) {
 	ctx := context.Background()
 	database := openTestDatabase(t)
 	accounts := NewAccountRepository(database)
@@ -202,7 +202,8 @@ func TestEgressOperationsSharesWebNodeCapacityAcrossProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Assigned != 1 || result.Unplaced != 1 {
+	// 绑定额度按 Provider 分别核算：Web 与 Console 各自拥有一份额度。
+	if result.Assigned != 2 || result.Unplaced != 0 {
 		t.Fatalf("rebalance result = %#v", result)
 	}
 	storedWeb, err := accounts.Get(ctx, web.ID)
@@ -213,8 +214,8 @@ func TestEgressOperationsSharesWebNodeCapacityAcrossProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if storedWeb.EgressNodeID != node.ID || storedConsole.EgressNodeID != 0 {
-		t.Fatalf("shared node capacity web=%d console=%d", storedWeb.EgressNodeID, storedConsole.EgressNodeID)
+	if storedWeb.EgressNodeID != node.ID || storedConsole.EgressNodeID != node.ID {
+		t.Fatalf("per-provider capacity web=%d console=%d", storedWeb.EgressNodeID, storedConsole.EgressNodeID)
 	}
 }
 
