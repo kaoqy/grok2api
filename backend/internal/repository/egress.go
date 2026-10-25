@@ -48,6 +48,8 @@ type EgressNodeListFilter struct {
 	Enabled     *bool
 	ProbeStatus egress.ProbeStatus
 	Assignment  string
+	// IncludeShared 同时返回 Build/Web 共用节点。
+	IncludeShared bool
 }
 
 type EgressNodeListQuery struct {

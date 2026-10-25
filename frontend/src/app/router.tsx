@@ -33,7 +33,7 @@ export const router = createBrowserRouter([
           { path: "/creative-console", element: <Navigate to="/playground" replace /> },
           { path: "/client-keys", element: <DeferredClientKeysPage /> },
           { path: "/gallery", element: <DeferredGalleryPage /> },
-          { path: "/video-gallery", element: <Navigate to="/gallery" replace /> },
+          { path: "/video-gallery", element: <Navigate to="/gallery?tab=videos" replace /> },
           { path: "/request-audits", element: <DeferredRequestAuditsPage /> },
           { path: "/quality-guard", element: <Navigate to="/dashboard" replace /> },
           { path: "/settings", element: <DeferredSettingsPage /> },

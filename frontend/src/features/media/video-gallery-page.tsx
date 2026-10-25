@@ -15,6 +15,7 @@ import { Table, TableActionCell, TableActionHead, TableBody, TableCell, TableHea
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { deleteVideos, getVideoStats, listVideos } from "@/features/media/media-api";
 import type { MediaJobDTO, VideoStatsDTO } from "@/features/media/types";
+import { CopyButton } from "@/shared/components/copy-button";
 import { EmptyState, ErrorState, TableLoadingRow } from "@/shared/components/data-state";
 import { DataTableFilters } from "@/shared/components/data-table-filters";
 import { DataTableShell } from "@/shared/components/data-table-shell";
@@ -31,7 +32,8 @@ type VideoStatusFilter = MediaJobDTO["status"] | "";
 
 const statusOptions: MediaJobDTO["status"][] = ["queued", "in_progress", "completed", "failed"];
 
-export function VideoGalleryPage() {
+// embedded 为 true 时由外层图库页提供标题与刷新。
+export function VideoGalleryPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -48,6 +50,11 @@ export function VideoGalleryPage() {
   const videosQuery = useQuery({
     queryKey: ["media", "videos", page, pageSize, statusFilter, normalizedSearch, sort.field, sort.order],
     queryFn: () => listVideos({ page, pageSize, status: statusFilter, search: normalizedSearch || undefined, sortBy: sort.field, sortOrder: sort.order }),
+    // 有进行中的任务时自动轮询，进度条无需手动刷新。
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? [];
+      return items.some((job) => job.status === "queued" || job.status === "in_progress") ? 4000 : false;
+    },
   });
   const statsQuery = useQuery({
     queryKey: ["media", "videos", "stats"],
@@ -109,7 +116,7 @@ export function VideoGalleryPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      {embedded ? null : <PageHeader
         title={t("media.videos.title")}
         description={t("media.videos.description")}
         actions={(
@@ -118,7 +125,7 @@ export function VideoGalleryPage() {
             {t("common.refresh")}
           </Button>
         )}
-      />
+      />}
 
       <DataTableShell
         toolbar={(
@@ -197,7 +204,11 @@ export function VideoGalleryPage() {
                   </TableCell>
                   <TableCell className="min-w-0">
                     <div className="min-w-0">
-                      <span className="block truncate text-xs font-medium" title={job.prompt}>{job.prompt || "-"}</span>
+                      {job.status === "completed" && job.assetId ? (
+                        <button type="button" className="block max-w-full truncate text-left text-xs font-medium underline-offset-2 hover:underline" title={job.prompt} onClick={() => setPreviewing(job)}>{job.prompt || "-"}</button>
+                      ) : (
+                        <span className="block truncate text-xs font-medium" title={job.prompt}>{job.prompt || "-"}</span>
+                      )}
                       <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground" title={job.id}>{job.id}</span>
                     </div>
                   </TableCell>
@@ -217,9 +228,12 @@ export function VideoGalleryPage() {
                   </TableCell>
                   <TableCell><VideoTimes job={job} locale={i18n.language} /></TableCell>
                   <TableActionCell>
-                    {job.status === "completed" ? (
-                      <Button type="button" variant="ghost" size="icon" className="size-8" disabled={!job.assetId} title={job.assetId ? t("media.videos.preview") : t("media.videos.previewUnavailable")} onClick={() => setPreviewing(job)} aria-label={job.assetId ? t("media.videos.preview") : t("media.videos.previewUnavailable")}><Eye /></Button>
-                    ) : null}
+                    <div className="flex items-center justify-end gap-0.5">
+                      {job.status === "completed" && job.assetId ? <CopyButton value={videoAssetURL(job.assetId)} copyLabel={t("media.videos.copyLink")} className="size-8" /> : null}
+                      {job.status === "completed" ? (
+                        <Button type="button" variant="ghost" size="icon" className="size-8" disabled={!job.assetId} title={job.assetId ? t("media.videos.preview") : t("media.videos.previewUnavailable")} onClick={() => setPreviewing(job)} aria-label={job.assetId ? t("media.videos.preview") : t("media.videos.previewUnavailable")}><Eye /></Button>
+                      ) : null}
+                    </div>
                   </TableActionCell>
                 </TableRow>
               )} />

@@ -40,7 +40,7 @@ export type AuditDTO = {
   accountName?: string;
   egressNodeId?: string;
   egressNodeName?: string;
-  egressScope?: "grok_build" | "grok_web" | "grok_console" | "grok_web_asset" | "grok_console_asset";
+  egressScope?: "grok_build" | "grok_web" | "grok_console" | "grok_web_asset" | "grok_console_asset" | "grok_shared";
   egressMode?: "direct" | "proxy";
   // 0 表示已返回 2xx 响应头但流随后失败（如首字节超时/流式中断），不属于任何 HTTP 状态段。
   statusCode: number;
@@ -63,8 +63,13 @@ export type AuditDTO = {
   contextInputTokens: number;
   contextOutputTokens: number;
   firstTokenMs?: number;
+  // 首字之后的生成窗口耗时；非流式或未观测到首字时为 0。
+  generationMs?: number;
   outputTokensPerSecond?: number;
   durationMs: number;
+  // 详细耗时拆分仅在详情接口返回：排队时间与上游尝试耗时合计。
+  attemptsMs?: number;
+  queueMs?: number;
   errorCode?: string;
   requestMethod?: string;
   requestPath?: string;
@@ -85,6 +90,8 @@ export type AuditAttemptDTO = {
   upstreamUrl?: string;
   startedAt: string;
   durationMs: number;
+  // 该次尝试相对请求到达的偏移，用于耗时水流图。
+  offsetMs?: number;
   upstreamStatusCode?: number;
   upstreamStatus?: string;
   responseHeaders: Record<string, string[]>;

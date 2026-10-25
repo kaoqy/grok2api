@@ -123,14 +123,19 @@ type auditResponse struct {
 	ContextInputTokens      int64                     `json:"contextInputTokens"`
 	ContextOutputTokens     int64                     `json:"contextOutputTokens"`
 	FirstTokenMS            *int64                    `json:"firstTokenMs,omitempty"`
+	GenerationMS            int64                     `json:"generationMs"`
 	OutputTokensPerSecond   *float64                  `json:"outputTokensPerSecond,omitempty"`
 	DurationMS              int64                     `json:"durationMs"`
-	ErrorCode               string                    `json:"errorCode,omitempty"`
-	RequestMethod           string                    `json:"requestMethod,omitempty"`
-	RequestPath             string                    `json:"requestPath,omitempty"`
-	RequestHeaders          map[string][]string       `json:"requestHeaders,omitempty"`
-	AttemptCount            int                       `json:"attemptCount"`
-	CreatedAt               time.Time                 `json:"createdAt"`
+	// AttemptsMS 与 QueueMS 仅在详情接口返回：前者是上游尝试耗时合计，
+	// 后者是请求到达后等待调度、建连前的排队时间。
+	AttemptsMS     int64               `json:"attemptsMs,omitempty"`
+	QueueMS        int64               `json:"queueMs,omitempty"`
+	ErrorCode      string              `json:"errorCode,omitempty"`
+	RequestMethod  string              `json:"requestMethod,omitempty"`
+	RequestPath    string              `json:"requestPath,omitempty"`
+	RequestHeaders map[string][]string `json:"requestHeaders,omitempty"`
+	AttemptCount   int                 `json:"attemptCount"`
+	CreatedAt      time.Time           `json:"createdAt"`
 }
 
 type billingBreakdownResponse struct {
@@ -152,17 +157,19 @@ type billingComponentResponse struct {
 }
 
 type auditAttemptResponse struct {
-	ID                    uint64                    `json:"id,string"`
-	Number                int                       `json:"number"`
-	Source                string                    `json:"source"`
-	Stage                 string                    `json:"stage"`
-	AccountID             *uint64                   `json:"accountId,string,omitempty"`
-	AccountName           string                    `json:"accountName,omitempty"`
-	Method                string                    `json:"method,omitempty"`
-	RequestPath           string                    `json:"requestPath,omitempty"`
-	UpstreamURL           string                    `json:"upstreamUrl,omitempty"`
-	StartedAt             time.Time                 `json:"startedAt"`
-	DurationMS            int64                     `json:"durationMs"`
+	ID          uint64    `json:"id,string"`
+	Number      int       `json:"number"`
+	Source      string    `json:"source"`
+	Stage       string    `json:"stage"`
+	AccountID   *uint64   `json:"accountId,string,omitempty"`
+	AccountName string    `json:"accountName,omitempty"`
+	Method      string    `json:"method,omitempty"`
+	RequestPath string    `json:"requestPath,omitempty"`
+	UpstreamURL string    `json:"upstreamUrl,omitempty"`
+	StartedAt   time.Time `json:"startedAt"`
+	DurationMS  int64     `json:"durationMs"`
+	// OffsetMS 是该次尝试相对请求到达的偏移，用于耗时水流图。
+	OffsetMS              int64                     `json:"offsetMs"`
 	UpstreamStatusCode    *int                      `json:"upstreamStatusCode,omitempty"`
 	UpstreamStatus        string                    `json:"upstreamStatus,omitempty"`
 	ResponseHeaders       map[string][]string       `json:"responseHeaders"`
@@ -258,7 +265,8 @@ func (h *Handler) get(c *gin.Context) {
 			errorChain = append(errorChain, auditErrorFrameResponse{Type: frame.Type, Message: frame.Message})
 		}
 		attempts = append(attempts, auditAttemptResponse{
-			ID: attempt.ID, Number: attempt.Number, Source: string(attempt.Source), Stage: attempt.Stage,
+			OffsetMS: attemptOffsetMS(value.CreatedAt, attempt.StartedAt),
+			ID:       attempt.ID, Number: attempt.Number, Source: string(attempt.Source), Stage: attempt.Stage,
 			AccountID: attempt.AccountID, AccountName: attempt.AccountName, Method: attempt.Method, RequestPath: attempt.RequestPath,
 			UpstreamURL: attempt.UpstreamURL, StartedAt: attempt.StartedAt, DurationMS: attempt.DurationMS,
 			UpstreamStatusCode: attempt.UpstreamStatusCode, UpstreamStatus: attempt.UpstreamStatus,
@@ -267,7 +275,17 @@ func (h *Handler) get(c *gin.Context) {
 			TransportError:        attempt.TransportError, ErrorChain: errorChain,
 		})
 	}
-	response.Success(c, http.StatusOK, auditDetailResponse{Audit: newAuditResponse(value), Attempts: attempts})
+	audit := newAuditResponse(value)
+	// 详情页需要完整耗时拆分：排队、上游尝试合计，以及首字前的准备时间。
+	if len(value.Attempts) > 0 {
+		audit.QueueMS = attemptOffsetMS(value.CreatedAt, value.Attempts[0].StartedAt)
+		var total int64
+		for _, attempt := range value.Attempts {
+			total += attempt.DurationMS
+		}
+		audit.AttemptsMS = total
+	}
+	response.Success(c, http.StatusOK, auditDetailResponse{Audit: audit, Attempts: attempts})
 }
 
 type summaryResponse struct {
@@ -493,12 +511,21 @@ func newAuditResponse(value auditdomain.Record) auditResponse {
 		Billing:        newBillingBreakdown(value),
 		NumSourcesUsed: value.NumSourcesUsed, NumServerSideToolsUsed: value.NumServerSideToolsUsed,
 		ContextInputTokens: value.ContextInputTokens, ContextOutputTokens: value.ContextOutputTokens,
-		FirstTokenMS: value.FirstTokenMS, OutputTokensPerSecond: auditOutputTokensPerSecond(value), DurationMS: value.DurationMS,
+		FirstTokenMS: value.FirstTokenMS, GenerationMS: auditGenerationMS(value),
+		OutputTokensPerSecond: auditOutputTokensPerSecond(value), DurationMS: value.DurationMS,
 		ErrorCode: value.ErrorCode, RequestMethod: value.RequestMethod, RequestPath: value.RequestPath, RequestHeaders: value.RequestHeaders,
 		AttemptCount: value.AttemptCount,
 		CreatedAt:    value.CreatedAt,
 	}
 	return result
+}
+
+// attemptOffsetMS 返回尝试开始相对请求到达的偏移；时间异常时返回 0。
+func attemptOffsetMS(createdAt, startedAt time.Time) int64 {
+	if createdAt.IsZero() || startedAt.IsZero() || startedAt.Before(createdAt) {
+		return 0
+	}
+	return startedAt.Sub(createdAt).Milliseconds()
 }
 
 func newBillingBreakdown(value auditdomain.Record) *billingBreakdownResponse {
@@ -541,6 +568,15 @@ func newBillingBreakdown(value auditdomain.Record) *billingBreakdownResponse {
 		})
 	}
 	return breakdown
+}
+
+// auditGenerationMS 返回首字之后的生成窗口时长。
+// 非流式或未拿到首字时返回 0，避免把建连耗时算成生成时长。
+func auditGenerationMS(value auditdomain.Record) int64 {
+	if value.FirstTokenMS == nil || value.DurationMS <= *value.FirstTokenMS {
+		return 0
+	}
+	return value.DurationMS - *value.FirstTokenMS
 }
 
 func auditOutputTokensPerSecond(value auditdomain.Record) *float64 {

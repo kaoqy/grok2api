@@ -182,7 +182,9 @@ function RequestOverviewPanel({ audit }: { audit: AuditDTO }) {
   }, [audit, t, i18n.language]);
 
   return (
-    <div className="grid gap-2.5 sm:grid-cols-2">
+    <div className="space-y-3">
+      <LatencyBreakdown audit={audit} />
+      <div className="grid gap-2.5 sm:grid-cols-2">
       <OverviewField
         label={t("audits.targetAccount")}
         value={audit.accountName || (audit.accountId ? `#${audit.accountId}` : "-")}
@@ -242,7 +244,55 @@ function RequestOverviewPanel({ audit }: { audit: AuditDTO }) {
           ].filter(Boolean).join(" · ")}
         />
       ) : null}
+      </div>
     </div>
+  );
+}
+
+// LatencyBreakdown 把端到端耗时拆成排队、上游尝试与生成三段，
+// 并用堆叠条直观告诉管理员时间花在哪里。
+function LatencyBreakdown({ audit }: { audit: AuditDTO }) {
+  const { t, i18n } = useTranslation();
+  const total = audit.durationMs;
+  const queue = audit.queueMs ?? 0;
+  const upstream = audit.attemptsMs ?? 0;
+  const generation = audit.generationMs ?? (audit.firstTokenMs !== undefined ? Math.max(0, total - audit.firstTokenMs) : 0);
+  const other = Math.max(0, total - queue - upstream - generation);
+  const segments = [
+    { key: "queue", label: t("audits.queueMetric"), value: queue, className: "bg-foreground/25" },
+    { key: "upstream", label: t("audits.upstreamMetric"), value: upstream, className: "bg-foreground/55" },
+    { key: "generation", label: t("audits.generationMetric"), value: generation, className: "bg-foreground" },
+    { key: "other", label: t("audits.overheadMetric"), value: other, className: "bg-foreground/10" },
+  ].filter((segment) => segment.value > 0);
+  if (total <= 0 || segments.length === 0) {
+    return null;
+  }
+  return (
+    <section className="rounded-lg border-2 border-border bg-card px-3 py-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">{t("audits.latencyTitle")}</span>
+        <span className="tabular-nums">{t("audits.latencyTotal")} {formatNumber(total, i18n.language)} ms</span>
+      </div>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+        {segments.map((segment) => (
+          <span
+            key={segment.key}
+            className={cn("h-full", segment.className)}
+            style={{ width: `${(segment.value / total) * 100}%` }}
+            title={`${segment.label} ${segment.value} ms`}
+          />
+        ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] tabular-nums text-muted-foreground">
+        {segments.map((segment) => (
+          <span key={segment.key} className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2 rounded-sm", segment.className)} />
+            {segment.label}
+            <span className="font-medium text-foreground">{formatNumber(segment.value, i18n.language)} ms</span>
+          </span>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -319,7 +369,9 @@ function UpstreamAttemptsPanel({
   const terminalAttemptNumber = Math.max(...attempts.map((attempt) => attempt.number));
 
   return (
-    <div className="grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)] lg:grid-rows-1">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-2">
+    <AttemptWaterfall audit={audit} attempts={attempts} />
+    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)] lg:grid-rows-1">
       <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border/40 bg-muted/25 px-4 py-2 sm:px-5 lg:border-r lg:border-b-0 lg:pr-2.5">
         <p className="mb-0.5 shrink-0 text-xs text-muted-foreground">{t("audits.attemptTimeline")}</p>
         <div className="flex max-h-28 gap-1 overflow-auto lg:min-h-0 lg:max-h-none lg:flex-1 lg:flex-col">
@@ -336,6 +388,41 @@ function UpstreamAttemptsPanel({
       </aside>
       <AttemptDetail key={selectedAttempt.id} attempt={selectedAttempt} />
     </div>
+    </div>
+  );
+}
+
+// AttemptWaterfall 把每次上游尝试按真实偏移与耗时画成水流条，
+// 便于区分“排队、建连、重试、生成”各自的占比。
+function AttemptWaterfall({ audit, attempts }: { audit: AuditDTO; attempts: AuditAttemptDTO[] }) {
+  const { t, i18n } = useTranslation();
+  const total = Math.max(audit.durationMs, 1);
+  return (
+    <section className="shrink-0 rounded-lg border-2 border-border bg-card px-3 py-2">
+      <div className="mb-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">{t("audits.waterfallTitle")}</span>
+        <span className="tabular-nums">{formatNumber(total, i18n.language)} ms</span>
+      </div>
+      <div className="space-y-1">
+        {attempts.map((attempt) => {
+          const offset = Math.min(Math.max(attempt.offsetMs ?? 0, 0), total);
+          const width = Math.min(100, Math.max(0.8, (attempt.durationMs / total) * 100));
+          const left = Math.max(0, Math.min((offset / total) * 100, 100 - width));
+          const ok = (attempt.upstreamStatusCode ?? 0) >= 200 && (attempt.upstreamStatusCode ?? 0) < 300;
+          return (
+            <div key={attempt.id} className="flex items-center gap-2">
+              <span className="w-10 shrink-0 text-[10px] tabular-nums text-muted-foreground">#{attempt.number}</span>
+              <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                <span className={cn("absolute inset-y-0 rounded-full", ok ? "bg-foreground" : "bg-foreground/40")} style={{ left: `${left}%`, width: `${width}%` }} />
+              </div>
+              <span className="w-32 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+                {formatNumber(offset, i18n.language)} + {formatNumber(attempt.durationMs, i18n.language)} ms
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

@@ -19,7 +19,8 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { cn } from "@/shared/lib/cn";
 import { formatDateTime, formatNumber } from "@/shared/lib/format";
 
-export function GalleryPage() {
+// embedded 为 true 时由外层图库页提供标题与刷新，这里只渲染内容。
+export function GalleryPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -88,7 +89,7 @@ export function GalleryPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      {embedded ? null : <PageHeader
         title={t("media.images.title")}
         description={t("media.images.description")}
         actions={(
@@ -97,7 +98,7 @@ export function GalleryPage() {
             {t("common.refresh")}
           </Button>
         )}
-      />
+      />}
 
       <DataTableShell
         toolbar={(
@@ -147,7 +148,7 @@ export function GalleryPage() {
         {!imagesQuery.isPending && result && result.items.length === 0 ? <GalleryEmptyState message={t(normalizedSearch ? "media.images.noMatches" : "media.images.empty")} /> : null}
 
         {!imagesQuery.isPending && result && result.items.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 p-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {result.items.map((image) => <ImageCard key={image.id} image={image} locale={i18n.language} selectionMode={selected.size > 0} selected={selected.has(image.id)} onSelectedChange={(checked) => toggleImage(image.id, checked)} />)}
           </div>
         ) : null}
@@ -199,6 +200,10 @@ function ImageCard({ image, locale, selectionMode, selected, onSelectedChange }:
         <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
           <img src={imageURL} alt={image.id} loading="lazy" decoding="async" className="size-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.025]" />
           {selected ? <span className="pointer-events-none absolute inset-0 rounded-lg ring-1 ring-inset ring-primary/70" aria-hidden="true" /> : null}
+          <span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded border border-border bg-background/90 px-1.5 py-px text-[10px] uppercase tracking-wide backdrop-blur-sm">
+            {image.storageDriver === "s3" ? <Cloud className="size-2.5" /> : <HardDrive className="size-2.5" />}
+            {image.storageDriver === "s3" ? t("media.images.storageS3") : t("media.images.storageLocal")}
+          </span>
           {!selectionMode ? (
             <span className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-background/85 text-foreground opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
               <ArrowUpRight className="size-3.5" />
@@ -213,12 +218,6 @@ function ImageCard({ image, locale, selectionMode, selected, onSelectedChange }:
           <div className="flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
             <span className="min-w-0 truncate uppercase" title={image.mimeType}>{formatMediaType(image)}</span>
             <span className="shrink-0 whitespace-nowrap">{formatDateTime(image.createdAt, locale)}</span>
-          </div>
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-1 py-px text-[10px] uppercase text-muted-foreground">
-              {image.storageDriver === "s3" ? <Cloud className="size-2.5" /> : <HardDrive className="size-2.5" />}
-              {image.storageDriver === "s3" ? t("media.images.storageS3") : t("media.images.storageLocal")}
-            </span>
           </div>
         </div>
       </a>
@@ -258,7 +257,7 @@ function GalleryEmptyState({ message }: { message: string }) {
 
 function ImageGridLoading() {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" aria-hidden="true">
+    <div className="grid grid-cols-2 gap-3 p-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" aria-hidden="true">
       {Array.from({ length: 10 }, (_, index) => (
         <div key={index} className="min-w-0">
           <div className="aspect-square animate-pulse rounded-lg bg-muted" />

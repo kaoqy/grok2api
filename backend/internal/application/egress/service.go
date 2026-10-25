@@ -77,7 +77,7 @@ type QualityProber interface {
 }
 
 const (
-	maxProxyURLBytes         = 8192
+	maxProxyURLBytes = 8192
 	// maxBackupProxyProfiles 限制单次备份能带出的代理档案数量。
 	maxBackupProxyProfiles   = 1000
 	maxCloudflareCookieBytes = 16 << 10
@@ -110,6 +110,8 @@ type ListFilter struct {
 	ProbeStatus string
 	Assignment  string
 	Sort        repository.SortQuery
+	// IncludeShared 让指定作用域的列表同时包含 Build/Web 共用节点。
+	IncludeShared bool
 }
 
 type ServiceRepository interface {
@@ -430,6 +432,7 @@ func (s *Service) List(ctx context.Context, page, pageSize int, search string, f
 		Page: repository.PageQuery{Offset: (page - 1) * pageSize, Limit: pageSize, Search: strings.TrimSpace(search), Sort: filter.Sort},
 		Filter: repository.EgressNodeListFilter{
 			Scope: filter.Scope, Enabled: enabled, ProbeStatus: domain.ProbeStatus(filter.ProbeStatus), Assignment: filter.Assignment,
+			IncludeShared: filter.IncludeShared && filter.Scope != "" && filter.Scope != domain.ScopeShared,
 		},
 	})
 	if err != nil {
@@ -1361,6 +1364,11 @@ func (s *Service) publicNode(value domain.Node) domain.PublicNode {
 	if proxyPool {
 		health, failureCount, cooldownUntil, lastError = 1, 0, nil, ""
 	}
+	// 列表与详情接口都必须返回对象，否则 nil map 会序列化成 null 并让客户端解码失败。
+	counts := value.AssignedAccountCounts
+	if counts == nil {
+		counts = map[string]int{}
+	}
 	return domain.PublicNode{
 		ID: value.ID, Name: value.Name, Scope: value.Scope, Enabled: value.Enabled,
 		ProxyConfigured: value.EncryptedProxyURL != "", ProxyDisplay: proxyDisplay, ProxyFingerprint: proxyFingerprint,
@@ -1378,7 +1386,7 @@ func (s *Service) publicNode(value domain.Node) domain.PublicNode {
 		AssignedAccountCount: value.AssignedAccountCount,
 		CreatedAt:            value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		// AssignedAccountCounts 按 Provider 分列的绑定量，共用节点据此分别核算额度。
-		AssignedAccountCounts: value.AssignedAccountCounts,
+		AssignedAccountCounts: counts,
 	}
 }
 

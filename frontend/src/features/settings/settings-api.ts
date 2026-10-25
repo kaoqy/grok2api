@@ -1,5 +1,5 @@
 import { apiRequest } from "@/shared/api/client";
-import { createObjectDecoder, decodeBooleanResult, hasShape, isArrayOf, isBoolean, isNumber, isOneOf, isOptional, isRecordOf, isString } from "@/shared/api/decoder";
+import { createObjectDecoder, decodeBooleanResult, hasShape, isArrayOf, isBoolean, isNumber, isOneOf, isOptional, isRecordOf, isString, type ValueValidator } from "@/shared/api/decoder";
 import type { SortOrder } from "@/shared/lib/table-sort";
 
 export type SettingsConfigDTO = {
@@ -235,6 +235,8 @@ type EgressOperationsConfigWireDTO = Omit<EgressOperationsConfigDTO, "probeProvi
 };
 type EgressProbeResultWireDTO = Omit<EgressProbeResultDTO, "ipv4" | "ipv6"> & { ipv4?: EgressIPProbeDTO; ipv6?: EgressIPProbeDTO };
 const unknownEgressIPProbe = (): EgressIPProbeDTO => ({ status: "unknown", latencyMs: 0 });
+// Go 的 nil map 会序列化成 null；解码时把 null 当作空对象，避免整个节点响应被判为无效。
+const isOptionalRecordOfNumbers: ValueValidator = (value) => value === undefined || value === null || isRecordOf(isNumber)(value);
 const withEgressNodeProbeDefaults = (value: EgressNodeWireDTO): EgressNodeDTO => ({
   ...value,
   ipv4Probe: value.ipv4Probe ?? unknownEgressIPProbe(),
@@ -249,7 +251,7 @@ const egressNodeValidator = hasShape({
   id: isString, name: isString, scope: isOneOf("grok_build", "grok_web", "grok_console", "grok_web_asset", "grok_console_asset", "grok_shared"), enabled: isBoolean,
   proxyConfigured: isBoolean, proxyDisplay: isOptional(isString), proxyFingerprint: isOptional(isString), userAgent: isString, cookieConfigured: isBoolean, accountBoundProxy: isBoolean, proxyPool: isBoolean, health: isNumber, failureCount: isNumber,
   sourceId: isOptional(isString), proxyProfileId: isOptional(isString), proxyProfileName: isOptional(isString), accountCapacity: isNumber, assignedAccountCount: isNumber,
-  assignedAccountCounts: isOptional(isRecordOf(isNumber)),
+  assignedAccountCounts: isOptionalRecordOfNumbers,
   probeStatus: isOneOf("unknown", "healthy", "unhealthy"), lastProbedAt: isOptional(isString), probeLatencyMs: isNumber, exitIp: isOptional(isString), probeError: isOptional(isString), probeProvider: isOptional(isOneOf("ipinfo", "cloudflare")),
   ipv4Probe: isOptional(egressIPProbeValidator), ipv6Probe: isOptional(egressIPProbeValidator),
   cooldownUntil: isOptional(isString), lastError: isOptional(isString),
@@ -258,7 +260,7 @@ const decodeEgressNodeRaw = createObjectDecoder<EgressNodeWireDTO>("egress node"
   id: isString, name: isString, scope: isOneOf("grok_build", "grok_web", "grok_console", "grok_web_asset", "grok_console_asset", "grok_shared"), enabled: isBoolean,
   proxyConfigured: isBoolean, proxyDisplay: isOptional(isString), proxyFingerprint: isOptional(isString), userAgent: isString, cookieConfigured: isBoolean, accountBoundProxy: isBoolean, proxyPool: isBoolean, health: isNumber, failureCount: isNumber,
   sourceId: isOptional(isString), proxyProfileId: isOptional(isString), proxyProfileName: isOptional(isString), accountCapacity: isNumber, assignedAccountCount: isNumber,
-  assignedAccountCounts: isOptional(isRecordOf(isNumber)),
+  assignedAccountCounts: isOptionalRecordOfNumbers,
   probeStatus: isOneOf("unknown", "healthy", "unhealthy"), lastProbedAt: isOptional(isString), probeLatencyMs: isNumber, exitIp: isOptional(isString), probeError: isOptional(isString), probeProvider: isOptional(isOneOf("ipinfo", "cloudflare")),
   ipv4Probe: isOptional(egressIPProbeValidator), ipv6Probe: isOptional(egressIPProbeValidator),
   cooldownUntil: isOptional(isString), lastError: isOptional(isString),
@@ -372,6 +374,8 @@ type ListEgressNodesInput = {
   assignment?: string;
   sortBy?: string;
   sortOrder?: SortOrder;
+  /** 同时返回 Build/Web 共用节点，用于账号绑定与筛选下拉。 */
+  includeShared?: boolean;
 };
 
 export function listEgressNodes(input: ListEgressNodesInput = {}): Promise<EgressNodeListDTO> {
@@ -381,6 +385,7 @@ export function listEgressNodes(input: ListEgressNodesInput = {}): Promise<Egres
   if (input.enabled) query.set("enabled", input.enabled);
   if (input.probe) query.set("probe", input.probe);
   if (input.assignment) query.set("assignment", input.assignment);
+  if (input.includeShared) query.set("includeShared", "true");
   if (input.sortBy && input.sortOrder) {
     query.set("sortBy", input.sortBy);
     query.set("sortOrder", input.sortOrder);

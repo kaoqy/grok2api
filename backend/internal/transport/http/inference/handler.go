@@ -995,6 +995,91 @@ func (h *Handler) getVideoContent(c *gin.Context) {
 	writeVideoContent(c, body, contentType, size, strings.TrimSpace(c.Param("requestId")))
 }
 
+// writeSeekableVideoContent 为本地视频提供 Range 支持。
+// 自己处理 206 而不用 http.ServeContent，因为后者会做
+// If-Match/If-Modified-Since 预检查，对覆盖的 ResponseWriter 不友好。
+func writeSeekableVideoContent(c *gin.Context, seeker io.ReadSeeker, size int64, contentType, downloadName string) {
+	c.Header("Accept-Ranges", "bytes")
+	headOnly := c.Request != nil && c.Request.Method == http.MethodHead
+	if headOnly {
+		c.Header("Content-Type", contentType)
+		c.Header("Content-Length", strconv.FormatInt(size, 10))
+		c.Status(http.StatusOK)
+		return
+	}
+	rangeHeader := ""
+	if c.Request != nil {
+		rangeHeader = c.GetHeader("Range")
+	}
+	start, length, partial, ok := parseVideoRange(rangeHeader, size)
+	if !ok {
+		c.Header("Content-Range", fmt.Sprintf("bytes */%d", size))
+		c.Status(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+	if partial {
+		if _, err := seeker.Seek(start, io.SeekStart); err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, start+length-1, size))
+		c.Header("Content-Length", strconv.FormatInt(length, 10))
+		c.Status(http.StatusPartialContent)
+	} else {
+		c.Header("Content-Length", strconv.FormatInt(size, 10))
+		c.Status(http.StatusOK)
+	}
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", mediafile.VideoContentDisposition(downloadName, contentType))
+	_, _ = io.CopyN(c.Writer, seeker, length)
+}
+
+// parseVideoRange 解析单段 Range；无 Range 时返回整段。
+func parseVideoRange(header string, size int64) (start, length int64, partial bool, ok bool) {
+	value := strings.TrimSpace(header)
+	if value == "" {
+		return 0, size, false, true
+	}
+	if !strings.HasPrefix(value, "bytes=") {
+		return 0, 0, false, false
+	}
+	spec := strings.TrimSpace(strings.TrimPrefix(value, "bytes="))
+	if strings.Contains(spec, ",") {
+		// 多段 Range 需要 multipart 响应；视频播放只需单段，直接降级为整段。
+		return 0, size, false, true
+	}
+	left, right, found := strings.Cut(spec, "-")
+	if !found {
+		return 0, 0, false, false
+	}
+	left, right = strings.TrimSpace(left), strings.TrimSpace(right)
+	if left == "" {
+		suffix, err := strconv.ParseInt(right, 10, 64)
+		if err != nil || suffix <= 0 || size <= 0 {
+			return 0, 0, false, false
+		}
+		if suffix > size {
+			suffix = size
+		}
+		return size - suffix, suffix, true, true
+	}
+	first, err := strconv.ParseInt(left, 10, 64)
+	if err != nil || first < 0 || first >= size {
+		return 0, 0, false, false
+	}
+	last := size - 1
+	if right != "" {
+		parsed, err := strconv.ParseInt(right, 10, 64)
+		if err != nil || parsed < first {
+			return 0, 0, false, false
+		}
+		if parsed < last {
+			last = parsed
+		}
+	}
+	return first, last - first + 1, true, true
+}
+
 func writeVideoContent(c *gin.Context, body io.Reader, contentType string, size int64, downloadName string) {
 	if size > maxMediaResponseTransferBytes {
 		writeOpenAIError(c, http.StatusBadGateway, "media_too_large", "上游媒体超过 2 GiB 安全上限")
@@ -1011,6 +1096,11 @@ func writeVideoContent(c *gin.Context, body io.Reader, contentType string, size 
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
 	c.Header("Referrer-Policy", "no-referrer")
+	// 本地资产是 *os.File：按 Range 请求分段响应，浏览器才能拖动进度条与分段缓存。
+	if seeker, ok := body.(io.ReadSeeker); ok && size >= 0 {
+		writeSeekableVideoContent(c, seeker, size, contentType, downloadName)
+		return
+	}
 	if size >= 0 {
 		c.Header("Content-Length", strconv.FormatInt(size, 10))
 	} else {
@@ -1502,6 +1592,10 @@ func copyStreamWithFallbackModel(writer gin.ResponseWriter, source io.Reader, pr
 	var compat responsesCompatState
 	compat.model = strings.TrimSpace(fallbackModel)
 	buffer := make([]byte, responseCopyBufferBytes)
+	// 用 bufio 把同一次 TCP 读取中已经缓存的多个 SSE 事件合并成一次写。
+	// Buffered() 不会阻塞，因此合并不会增加任何首字延迟，却能显著减少写入与 Flush 的系统调用。
+	source = bufio.NewReaderSize(source, responseCopyBufferBytes)
+	buffered, hasBuffer := source.(*bufio.Reader)
 	received := 0
 	transferred := 0
 	// A downstream stream that received a first token and then stalls used to
@@ -1517,6 +1611,17 @@ func copyStreamWithFallbackModel(writer gin.ResponseWriter, source io.Reader, pr
 	deadline := &responseDeadline{}
 	for {
 		n, readErr := source.Read(buffer)
+		// 把 bufio 已缓存的紧邻数据一并取出，形成一个更大的写入批次。
+		if hasBuffer && n > 0 && readErr == nil {
+			for n < len(buffer) && buffered.Buffered() > 0 {
+				m, err := buffered.Read(buffer[n:])
+				n += m
+				if err != nil {
+					readErr = err
+					break
+				}
+			}
+		}
 		if watchdog.TimedOut() && readErr != nil {
 			readErr = neterror.ErrUpstreamStreamIdleTimeout
 		}
@@ -1838,12 +1943,13 @@ func (i *responseInspector) Inspect(chunk []byte) {
 		}
 		if bytes.HasPrefix(line, []byte("data:")) {
 			value := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
-			if containsGeneratedDelta(value, i.protocol) {
+			// 首次观测到输出后不再重复解析每个增量，降低高吞吐下的 CPU 开销。
+			if !i.metadata.Usage.OutputObserved && containsGeneratedDelta(value, i.protocol) {
 				i.metadata.Usage.OutputObserved = true
 			}
 			i.observeFirstToken(value)
 			i.observeTerminal(value)
-			if !bytes.Equal(value, []byte("[DONE]")) {
+			if !bytes.Equal(value, []byte("[DONE]")) && i.metadataParseNeeded(value) {
 				metadata := extractMetadata(value)
 				if hasUsageMetadata(metadata.Usage) {
 					if metadata.Usage.ResponseModel == "" {
@@ -1878,6 +1984,15 @@ func (i *responseInspector) observeReasoningStart() {
 		return
 	}
 	i.firstTokenReady = true
+}
+
+// metadataParseNeeded 判断当前分片是否还需要完整 JSON 解析。
+// id/model 一旦捕获，只有带 usage 或 sequence_number 的终止事件才需要再次解析。
+func (i *responseInspector) metadataParseNeeded(data []byte) bool {
+	if i.metadata.ResponseID == "" || i.metadata.Model == "" {
+		return true
+	}
+	return bytes.Contains(data, []byte("\"usage\"")) || bytes.Contains(data, []byte("\"sequence_number\""))
 }
 
 func (i *responseInspector) observeFirstToken(data []byte) {
@@ -2028,6 +2143,10 @@ func (i *responseInspector) observeTerminal(data []byte) {
 		if i.protocol == streamProtocolChat {
 			i.terminalSuccess = true
 		}
+		return
+	}
+	// 普通文本增量不含 type 字段：先做一次字节检查，避免每个分片都做 JSON 解析。
+	if !bytes.Contains(data, []byte("\"type\"")) {
 		return
 	}
 	var payload struct {

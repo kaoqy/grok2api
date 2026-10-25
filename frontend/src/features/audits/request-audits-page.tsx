@@ -279,19 +279,21 @@ export function RequestAuditsPage() {
         {auditsQuery.isError ? <ErrorState message={auditsQuery.error.message} onRetry={() => void auditsQuery.refetch()} /> : null}
         {result && result.items.length === 0 ? <EmptyState /> : null}
         {auditsQuery.isPending || (result && result.items.length > 0) ? (
-          <Table viewportRows={20} rowHeight={96} aria-busy={auditsQuery.isFetching} className={cn("min-w-[1008px] table-fixed text-xs transition-opacity", auditsQuery.isPlaceholderData && "pointer-events-none opacity-60")}>
+          <Table viewportRows={20} rowHeight={104} aria-busy={auditsQuery.isFetching} className={cn("min-w-[1180px] table-fixed text-xs transition-opacity", auditsQuery.isPlaceholderData && "pointer-events-none opacity-60")}>
             <colgroup>
+              <col className="w-52" />
+              <col className="w-40" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-60" />
+              <col className="w-24" />
+              <col className="w-40" />
               <col className="w-36" />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-64" />
-              <col className="w-24" />
-              <col className="w-40" />
-              <col className="w-40" />
             </colgroup>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <SortableTableHead field="model" sortBy={sort.field} sortOrder={sort.order} onSort={changeSort}>{t("audits.model")}</SortableTableHead>
+                <TableHead>{t("audits.account")}</TableHead>
                 <TableHead className="text-center">{t("audits.egress")}</TableHead>
                 <SortableTableHead field="billing" sortBy={sort.field} sortOrder={sort.order} initialOrder="desc" onSort={changeSort}>{t("audits.billing")}</SortableTableHead>
                 <SortableTableHead field="tokens" sortBy={sort.field} sortOrder={sort.order} initialOrder="desc" className="px-3" onSort={changeSort}>{t("audits.tokens")}</SortableTableHead>
@@ -301,9 +303,9 @@ export function RequestAuditsPage() {
               </TableRow>
             </TableHeader>
             {auditsQuery.isPending ? (
-              <TableBody><TableLoadingRow colSpan={7} /></TableBody>
+              <TableBody><TableLoadingRow colSpan={8} /></TableBody>
             ) : (
-              <VirtualTableBody items={result?.items ?? []} colSpan={7} rowHeight={96} overscan={6} renderRow={renderAuditRow} />
+              <VirtualTableBody items={result?.items ?? []} colSpan={8} rowHeight={104} overscan={6} renderRow={renderAuditRow} />
             )}
           </Table>
         ) : null}
@@ -317,7 +319,7 @@ const AuditRow = memo(function AuditRow({ audit, locale, onOpen }: { audit: Audi
   const createdAt = formatCompactDateTime(audit.createdAt, locale);
   const createdAtLabel = formatDateTime(audit.createdAt, locale);
   return (
-    <TableRow className="h-[96px]">
+    <TableRow className="h-[104px]">
       <TableCell>
         <ModelRouteValue
           model={audit.modelPublicId || `#${audit.modelRouteId}`}
@@ -331,6 +333,7 @@ const AuditRow = memo(function AuditRow({ audit, locale, onOpen }: { audit: Audi
           sources={audit.numSourcesUsed}
         />
       </TableCell>
+      <TableCell><AccountValue audit={audit} /></TableCell>
       <TableCell className="text-center"><EgressValue audit={audit} /></TableCell>
       <TableCell><BillingValue audit={audit} /></TableCell>
       <TableCell className="px-3"><UsageDetails audit={audit} locale={locale} /></TableCell>
@@ -343,10 +346,38 @@ const AuditRow = memo(function AuditRow({ audit, locale, onOpen }: { audit: Audi
   );
 });
 
+// AccountValue 展示这次请求真正路由到的上游账号：名称、渠道与 ID。
+function AccountValue({ audit }: { audit: AuditDTO }) {
+  const { t } = useTranslation();
+  const name = audit.accountName || (audit.accountId ? `#${audit.accountId}` : "-");
+  const providerLabel = audit.provider === "grok_build" ? t("models.providerGrokBuild") : audit.provider === "grok_web" ? t("models.providerGrokWeb") : t("console.name");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="min-w-0 cursor-help">
+          <p className="truncate text-xs font-medium" title={name}>{name}</p>
+          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="shrink-0 rounded border border-border px-1 py-px">{providerLabel}</span>
+            <span className="truncate tabular-nums">{audit.accountId ? `#${audit.accountId}` : t("audits.accountUnbound")}</span>
+          </p>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72" side="top" align="start">
+        <div className="font-medium">{name}</div>
+        <div className="mt-1 text-primary-foreground/70">
+          {providerLabel}{audit.accountId ? ` · #${audit.accountId}` : ""}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ResponsePerformance({ audit, locale }: { audit: AuditDTO; locale: string }) {
   const { t } = useTranslation();
   const duration = splitDuration(formatDuration(audit.durationMs));
   const firstToken = audit.firstTokenMs === undefined ? { value: "—", unit: "" } : splitDuration(formatDuration(audit.firstTokenMs));
+  const generationMs = audit.generationMs ?? (audit.firstTokenMs !== undefined ? Math.max(0, audit.durationMs - audit.firstTokenMs) : 0);
+  const generation = generationMs > 0 ? splitDuration(formatDuration(generationMs)) : { value: "—", unit: "" };
   const throughput = audit.outputTokensPerSecond === undefined ? "—" : formatNumber(audit.outputTokensPerSecond, locale, 1);
   return (
     <div className="grid w-fit max-w-full grid-cols-[auto_auto] gap-x-2.5 gap-y-0.5 whitespace-nowrap text-[11px] leading-4 tabular-nums">
@@ -354,8 +385,14 @@ function ResponsePerformance({ audit, locale }: { audit: AuditDTO; locale: strin
       <PerformanceValue value={duration.value} unit={duration.unit} />
       <span className="text-muted-foreground">{t("audits.firstTokenMetric")}</span>
       <PerformanceValue value={firstToken.value} unit={firstToken.unit} />
+      <span className="text-muted-foreground">{t("audits.generationMetric")}</span>
+      <PerformanceValue value={generation.value} unit={generation.unit} />
       <span className="text-muted-foreground">{t("audits.throughputMetric")}</span>
       <PerformanceValue value={throughput} unit={t("audits.tokensPerSecondUnit")} />
+      <span className="text-muted-foreground">{t("audits.attemptsMetric")}</span>
+      {audit.attemptCount > 0
+        ? <PerformanceValue value={String(audit.attemptCount)} unit={t("audits.attemptsUnit")} />
+        : <PerformanceValue value="—" unit="" />}
     </div>
   );
 }

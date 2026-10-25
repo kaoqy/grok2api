@@ -56,7 +56,11 @@ func (r *EgressRepository) ListEgressNodePage(ctx context.Context, input reposit
 		query = query.Where("LOWER(egress_nodes.name) LIKE ?", "%"+strings.ToLower(search)+"%")
 	}
 	if input.Filter.Scope != "" {
-		query = query.Where("egress_nodes.scope = ?", input.Filter.Scope)
+		if input.Filter.IncludeShared && input.Filter.Scope != egress.ScopeShared {
+			query = query.Where("egress_nodes.scope IN ?", []egress.Scope{input.Filter.Scope, egress.ScopeShared})
+		} else {
+			query = query.Where("egress_nodes.scope = ?", input.Filter.Scope)
+		}
 	}
 	if input.Filter.Enabled != nil {
 		query = query.Where("egress_nodes.enabled = ?", *input.Filter.Enabled)

@@ -906,7 +906,8 @@ func (h *Handler) list(c *gin.Context) {
 	page, pageSize := nodePagination(c)
 	values, total, err := h.service.List(c.Request.Context(), page, pageSize, c.Query("search"), egressapp.ListFilter{
 		Scope: scope, Enabled: c.Query("enabled"), ProbeStatus: c.Query("probe"), Assignment: c.Query("assignment"),
-		Sort: sort,
+		IncludeShared: c.Query("includeShared") == "true",
+		Sort:          sort,
 	})
 	if h.writeListError(c, err) {
 		return
@@ -1104,6 +1105,11 @@ func newProxyProfileResponse(value egressdomain.PublicProxyProfile) proxyProfile
 }
 
 func newNodeResponse(value egressdomain.PublicNode) nodeResponse {
+	// nil map 会序列化成 null，客户端将无法解析该节点。
+	counts := value.AssignedAccountCounts
+	if counts == nil {
+		counts = map[string]int{}
+	}
 	return nodeResponse{
 		ID: value.ID, Name: value.Name, Scope: string(value.Scope), Enabled: value.Enabled,
 		ProxyConfigured: value.ProxyConfigured, ProxyDisplay: value.ProxyDisplay, ProxyFingerprint: value.ProxyFingerprint,
@@ -1115,8 +1121,8 @@ func newNodeResponse(value egressdomain.PublicNode) nodeResponse {
 		ProbeStatus: string(value.ProbeStatus), LastProbedAt: value.LastProbedAt, ProbeLatencyMS: value.ProbeLatencyMS, ExitIP: value.ExitIP, ProbeError: value.ProbeError,
 		ProbeProvider: string(value.ProbeProvider),
 		IPv4Probe:     newProbeFamilyResponse(value.IPv4Probe), IPv6Probe: newProbeFamilyResponse(value.IPv6Probe),
-		AssignedAccountCount: value.AssignedAccountCount,
-		AssignedAccountCounts: value.AssignedAccountCounts,
+		AssignedAccountCount:  value.AssignedAccountCount,
+		AssignedAccountCounts: counts,
 	}
 }
 

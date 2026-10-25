@@ -344,7 +344,7 @@ export function AccountsPage() {
   // list is always loaded; the binding dialog reuses the same result.
   const egressNodesQuery = useQuery({
     queryKey: ["egress-nodes", "account-binding"],
-    queryFn: () => listAllEgressNodes(),
+    queryFn: () => listAllEgressNodes({ includeShared: true }),
     staleTime: 60_000,
   });
   // 账号列表要显示绑定的 SOCKS 节点名称与地址，按 ID 建立索引后直接查表。
@@ -365,6 +365,7 @@ export function AccountsPage() {
       pageSize: egressFilterNodePageSize,
       search: debouncedEgressFilterOptionsSearch,
       scope: egressFilterPrimaryScope,
+      includeShared: true,
     }),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.page * lastPage.pageSize < lastPage.total ? lastPage.page + 1 : undefined,
@@ -381,6 +382,7 @@ export function AccountsPage() {
       pageSize: egressFilterNodePageSize,
       search: debouncedEgressFilterOptionsSearch,
       scope: "grok_web",
+      includeShared: true,
     }),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.page * lastPage.pageSize < lastPage.total ? lastPage.page + 1 : undefined,
@@ -2259,9 +2261,10 @@ function downloadAccountExport(blob: Blob, provider: AccountProvider, suffix: st
 }
 
 function scopeSupportsAccountProvider(scope: EgressScope, provider: AccountProvider): boolean {
-  if (provider === "grok_build") return scope === "grok_build";
-  if (provider === "grok_web") return scope === "grok_web";
-  return scope === "grok_web" || scope === "grok_console";
+  // Build/Web 共用节点可以同时承接两类账号；Console 仍可复用 Web 与共用节点。
+  if (provider === "grok_build") return scope === "grok_build" || scope === "grok_shared";
+  if (provider === "grok_web") return scope === "grok_web" || scope === "grok_shared";
+  return scope === "grok_web" || scope === "grok_console" || scope === "grok_shared";
 }
 
 function accountProviderPrimaryEgressScope(provider: AccountProvider): EgressScope {
